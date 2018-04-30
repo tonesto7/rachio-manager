@@ -702,7 +702,7 @@ def addRemoveDevices(uninst=false) {
 }
 
 def getDeviceLabelStr(name) {
-	return "Rachio (C)- ${name}"
+	return "Rachio - ${name}"
 }
 
 def getTimeSinceInSeconds(time) {
@@ -840,44 +840,6 @@ def sendJson(subUri, jsonBody, standbyCmd=false) {
 	}
 	return returnStatus
 }
-
-// def refreshAuthToken() {
-// 	log.debug "refreshAuthToken()"
-// 	def appKey = "refreshToken"
-
-// 	def notificationMessage = "Rachio is disconnected from SmartThings, because the access credential changed or was lost.  " +
-// 			"Please go to the Rachio SmartApp and re-enter your account login credentials."
-
-// 	def refreshParams = [
-// 			method: 'POST',
-// 			headers: ["Authorization": "Basic $appKey"],
-// 			uri: "${apiEndpoint}/uri",
-// 			body: [grant_type:'refresh_token', refresh_token:"${atomicState?.refreshToken}"],
-// 	]
-
-// 	try {
-// 		httpPost(refreshParams) { resp ->
-// 			if(resp?.status == 200) {
-// 				log.debug "refreshAuthToken()>> Response: ${resp?.data}"
-// 				if (resp?.data) {
-// 					atomicState.refreshToken = resp?.data?.refresh_token?.toString()
-// 					atomicState.authToken = resp?.data?.access_token?.toString()
-// 				}
-
-// 			} else {
-// 				sendPushAndFeeds(notificationMessage)
-// 			}
-// 		}
-// 	} catch (groovyx.net.http.HttpResponseException e) {
-// 		log.error "refreshAuthToken() >> Error: e.statusCode ${e.statusCode}"
-// 		def reAttemptPeriod = 300
-// 		if (e.statusCode != 401) {
-// 			runIn(reAttemptPeriod, "refreshAuthToken")
-// 		} else if (e.statusCode == 401) { //refresh token is expired
-// 			sendPushAndFeeds(notificationMessage)
-// 		}
-// 	}
-// }
 
 //Section6: helper methods ---------------------------------------------------------------------------------------------
 
