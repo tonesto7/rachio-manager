@@ -7,7 +7,7 @@
     "author": "Anthony S.",
     "description": "Community version of Rach.io Integration for SmartThings.",
     "category": "Green Living",
-    "bannerUrl": "https://raw.githubusercontent.com/tonesto7/nest-manager/master/Images/App/nst_manager_5_banner.png",
+    "bannerUrl": "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/app_banner.png",
     "forumUrl": "https://community.smartthings.com/t/release-rachio-manager/",
     "docUrl": "",
     "releaseType": "production",
