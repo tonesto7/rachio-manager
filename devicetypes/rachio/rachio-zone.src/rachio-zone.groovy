@@ -12,12 +12,12 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Modified: 4-30-2018
+ *	Modified: 5-09-2018
  */
 
 import java.text.SimpleDateFormat
 
-def devVer() { return "1.0.0" }
+def devVer() { return "1.0.1" }
 
 metadata {
 	definition (name: "Rachio Zone", namespace: "tonesto7", author: "Anthony Santilli") {
@@ -174,6 +174,16 @@ def parse(String description) {
 
 def initialize() {
 	sendEvent(name: "checkInterval", value: (17*60), data: [protocol: "cloud"], displayed: false)
+	verifyDataAttr()
+}
+
+def verifyDataAttr() {
+	if(!device?.getDataValue("manufacturer")) {
+		updateDataValue("manufacturer", "Rachio")
+	}
+	if(!device?.getDataValue("model")) {
+		updateDataValue("model", device?.name as String)
+	}
 }
 
 void installed() {

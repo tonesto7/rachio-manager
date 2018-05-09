@@ -33,7 +33,7 @@
             "name": "Rachio Controller",
             "iconUrl": "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/8zone_v1.png",
             "published": true,
-            "version": "1.0.0",
+            "version": "1.0.1",
             "appUrl": "deviceTypes/tonesto7/rachio-controller.src/rachio-controller.groovy",
             "optional": false
         },
@@ -41,7 +41,7 @@
             "name": "Rachio Zone",
             "iconUrl": "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/8zone_v1.png",
             "published": true,
-            "version": "1.0.0",
+            "version": "1.0.1",
             "appUrl": "deviceTypes/tonesto7/rachio-zone.src/rachio-zone.groovy",
             "optional": false
         }
