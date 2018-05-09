@@ -31,7 +31,6 @@ definition(
 	singleInstance: true,
 	usesThirdPartyAuthentication: true,
 	pausable: false)
-)
 
 preferences {
 	page(name: "startPage")
