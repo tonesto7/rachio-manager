@@ -13,7 +13,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Modified: 04-30-2018
+ *	Modified: 05-09-2018
  */
 
 import groovy.json.*
@@ -23,13 +23,14 @@ definition(
 	name: "Rachio Manager",
 	namespace: "tonesto7",
 	author: "Anthony Santilli",
-	description: "Community version of Rach.io Integration for SmartThings.",
+	description: "Community version of the SmartThings Rachio Integration.",
 	category: "Green Living",
 	iconUrl: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/Rachio-logo-100px.png",
 	iconX2Url: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/Rachio-logo-200px.png",
 	iconX3Url: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/Rachio-logo-300px.png",
 	singleInstance: true,
-	oauth: true
+	usesThirdPartyAuthentication: true,
+	pausable: false)
 )
 
 preferences {
@@ -45,7 +46,7 @@ mappings {
 	path("/rachioReceiver") { action: [ POST: "rachioReceiveHandler" ] }
 }
 
-def appVer() { return "1.0.0" }
+def appVer() { return "1.0.1" }
 
 def appInfoSect()	{
 	section() {
