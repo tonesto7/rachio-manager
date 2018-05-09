@@ -4,7 +4,7 @@
     "repoName": "rachio-manager",
     "repoBranch": "master",
     "name": "Rachio Manager",
-    "author": "Anthony S.",
+    "author": "Anthony Santilli",
     "description": "Community version of SmartThings Rachio Integration.",
     "category": "Green Living",
     "bannerUrl": "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/app_banner.png",
