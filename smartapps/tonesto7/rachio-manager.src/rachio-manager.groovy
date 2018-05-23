@@ -344,7 +344,7 @@ def getHardwareInfo(val) {
 			img = "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/8zone_v2.jpg"
 			break
 		case "GENERATION2_16ZONE":
-			model = "16ZoneV1"
+			model = "16ZoneV2"
 			desc = "16-Zone (Gen 2)"
 			img = "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/16zone_v2.jpg"
 			break
@@ -390,7 +390,7 @@ def _httpGet(subUri) {
 	} catch (ex) {
 		if(ex instanceof groovyx.net.http.HttpResponseException) {
 			if(ex?.response) {
-				log.error(ex?.response?.status, ex?.response?.data, "_httpGet()")
+				log.error("httpGet() Response Exception | Status: ${ex?.response?.status} | Data: ${ex?.response?.data}")
 			}
 		} else {
 			log.error "_httpGet exception: ${ex.message}"
