@@ -138,20 +138,25 @@ def devicePage() {
         appInfoSect()
         section("Device Selection:"){
             paragraph "Select your sprinkler controller and zones."
-            input(name: "sprinklers", title: "Select Your Sprinkler", type: "enum", description: "Tap to Select", required: true, multiple: false, options: devices, submitOnChange: true,
+            input(name: "sprinklers", title: "Select Your Sprinkler", type: "enum", description: "Tap to Select", required: true, multiple: true, options: devices, submitOnChange: true,
                     image: (atomicState?.modelInfo ? atomicState?.modelInfo.img : ""))
-            if(settings?.sprinklers) {
-                atomicState?.deviceId = settings?.sprinklers
-                updateHwInfoMap(devData?.devices)
-                def zoneData = zoneSelections(devData)
-                input(name: "selectedZones", title: "Select Your Zones", type: "enum", description: "Tap to Select", required: true, multiple: true, options: zoneData, submitOnChange: true)
-                if(settings?.selectedZones) {
-                    def d = devData?.devices?.find { it?.id == settings?.sprinklers }
-                    if(d) { devDesc(d) }
-                }
-            }
+            atomicState?.controllerIds = settings?.sprinklers
         }
         if(settings?.sprinklers) {
+            section("Device Selection:"){
+                // atomicState?.deviceId = settings?.sprinklers
+                updateHwInfoMap(devData?.devices, true)
+                def zoneData = zoneSelections(devData, true)
+                log.debug "zoneData: $zoneData"
+                // input(name: "selectedZones", title: "Select Your Zones", type: "enum", description: "Tap to Select", required: true, multiple: true, options: zoneData, submitOnChange: true)
+                input(name: "selectedZones", title: "Select Your Zones", type: "enum", description: "Tap to Select", required: true, multiple: true, groupedOptions: zoneData, submitOnChange: true)
+                if(settings?."selectedZones") {
+                    // def dData = devData?.devices?.find { it?.id in settings?.sprinklers }
+                    // dData?.each { d->
+                    //     if(d) { devDesc(d) }
+                    // }
+                }
+            }
             section("Preferences:") {
                 input(name: "pauseInStandby", title: "Disable Actions while in Standby?", type: "bool", defaultValue: true, multiple: false, submitOnChange: true,
                         description: "Allow your device to be disabled in SmartThings when you place your controller in Standby Mode...")
@@ -261,7 +266,7 @@ def getDeviceInputEnum(data) {
        devices[dni] = sid?.name
        //log.info "Found sprinkler with dni(locationId.gatewayId.systemId.zoneId): $dni and displayname: ${devices[dni]}"
     }
-    //log.info "getRachioDevicesData() >> sprinklers: $devices"
+    log.info "getRachioDevicesData() >> sprinklers: $devices"
     return devices
 }
 
@@ -275,7 +280,7 @@ def buildDeviceMap(userData, onlySelected=false) {
         def adni = [dev?.id].join('.')
         devMap[adni] = ["name":dev?.name, "zones":zoneMap]
     }
-    //log.debug "devMap: $devMap"
+    log.debug "devMap: $devMap"
     return devMap
 }
 
@@ -323,44 +328,21 @@ void updateHwInfoMap(data, multiDev=false) {
 }
 
 def getHardwareInfo(val) {
-    def res = [:]
-    def model = null
-    def desc = null
-    def img = ""
     switch(val) {
         case "GENERATION1_8ZONE":
-            model = "8ZoneV1"
-            desc = "8-Zone (Gen 1)"
-            img = getAppImg("rachio_gen1.png")
-            break
+            return [model: "8ZoneV1", desc: "8-Zone (Gen 1)", img: getAppImg("rachio_gen1.png")]
         case "GENERATION1_16ZONE":
-            model = "16ZoneV1"
-            desc = "16-Zone (Gen 1)"
-            img = getAppImg("rachio_gen1.png")
-            break
+            return [model: "16ZoneV1", desc: "16-Zone (Gen 1)", img: getAppImg("rachio_gen1.png")]
         case "GENERATION2_8ZONE":
-            model = "8ZoneV2"
-            desc = "8-Zone (Gen 2)"
-            img = getAppImg("rachio_gen2.png")
-            break
+            return [model: "8ZoneV2", desc: "8-Zone (Gen 2)", img: getAppImg("rachio_gen2.png")]
         case "GENERATION2_16ZONE":
-            model = "16ZoneV2"
-            desc = "16-Zone (Gen 2)"
-            img = getAppImg("rachio_gen2.png")
-            break
+            return [model: "16ZoneV2", desc: "16-Zone (Gen 2)", img: getAppImg("rachio_gen2.png")]
         case "GENERATION3_8ZONE":
-            model = "8ZoneV3"
-            desc = "8-Zone (Gen 3)"
-            img = getAppImg("rachio_gen3.png")
-            break
+            return [model: "8ZoneV3", desc: "8-Zone (Gen 3)", img: getAppImg("rachio_gen3.png")]
         case "GENERATION3_16ZONE":
-            model = "16ZoneV3"
-            desc = "16-Zone (Gen 3)"
-            img = getAppImg("rachio_gen3.png")
-            break
+            return [model: "16ZoneV3", desc: "16-Zone (Gen 3)", img: getAppImg("rachio_gen3.png")]
     }
-    res = ["desc":desc, "model":model, "img":img]
-    return res
+    return [desc: null, model: null, img: ""]
 }
 
 def getAppImg(imgName)	{ return "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/$imgName" }
@@ -740,6 +722,55 @@ def pollChild(child, devData) {
 }
 
 def pollChildren(child, devData) {
+    //log.trace "updating child device (${child?.label})" // | ${child?.device?.deviceNetworkId})"
+    try {
+        if(child && devData) {
+            def dni = child?.device?.deviceNetworkId
+            def d = child
+            def devLabel = d?.label?.toString()
+            def schedData = devData.currentSchedule
+            def devStatus = devData
+            def rainDelay = getCurrentRainDelay(devStatus)
+            def status = devStatus?.status
+            def pauseInStandby = settings?.pauseInStandby == false ? false : true
+            def inStandby = devData?.on.toString() != "true" ? true : false
+            atomicState?.inStandbyMode = inStandby
+            def data = []
+            atomicState?.selectedDevice.each { dev ->
+                if (dni == dev?.key) {
+                    if(atomicState?.isWatering == true && schedData?.status != "PROCESSING") { handleWateringSched(false) }
+                    def newLabel = getDeviceLabelStr(devData?.name).toString()
+                    if(devLabel != newLabel) {
+                        d?.label = newLabel
+                        log.info "Device's Label has changed from (${devLabel}) to [${newLabel}]"
+                    }
+                    data = ["data":devData, "schedData":schedData, "rainDelay":rainDelay, "status": status, "standby":inStandby, "pauseInStandby":pauseInStandby]
+                }
+            }
+
+            atomicState?.selectedZones.each { zone ->
+                if (dni == zone?.key) {
+                    def zoneData = findZoneData(dni, devData)
+                    def newLabel = getDeviceLabelStr(zoneData?.name).toString()
+                    if(devLabel != newLabel) {
+                        d?.label = getDeviceLabelStr(zoneData?.name)
+                        log.info "Device's Label has changed from (${devLabel}) to [${newLabel}]"
+                    }
+                    data = ["data":zoneData, "schedData":schedData, "devId":atomicState?.deviceId, "status": status, "standby":inStandby, "pauseInStandby":pauseInStandby]
+                }
+            }
+            if (d && data != []) {
+                d.generateEvent(data)
+            }
+        } else { log.warn "pollChildren cannot update children because it is missing the required parameters..." }
+    } catch(Exception ex) {
+        log.error "exception polling children: ${ex}"
+        //refreshAuthToken()
+    }
+    return result
+}
+
+def pollChildrenOld(child, devData) {
     //log.trace "updating child device (${child?.label})" // | ${child?.device?.deviceNetworkId})"
     try {
         if(child && devData) {
