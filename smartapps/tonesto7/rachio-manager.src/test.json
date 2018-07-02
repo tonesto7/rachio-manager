@@ -1,0 +1,36 @@
+{
+    "2c4a6535-ca36-4255-8031-8e0fb6f5f895": {
+        "name": "Home (Gen3)",
+        "zones": {
+            "85d97f16-fc54-4ade-83ca-76347fa340c8": "Front Yard Small - Zone 1",
+            "43a6abdc-781a-46cc-8745-2872cdd5e3b5": "Back Yard Edge - Zone 4",
+            "79238907-792d-4710-8923-cfb388274ba6": "Front Yard Large - Zone 2",
+            "67d9346d-8df4-40ff-80c1-d003f0959e48": "Back Yard Large - Zone 3",
+            "2cd8b03c-afd2-4f2a-ab6c-89d22e1f7d0b": "Zone 2",
+            "70cb56bb-edb0-427e-9aad-2e44309c84c8": "Zone 7",
+            "63b0d871-cd2b-45f6-a96d-122dd887c8ed": "Zone 8",
+            "a662c2f4-eeb7-4820-a2ad-12d04fd0eea7": "Zone 3",
+            "7d2f7455-a0f9-45c4-82b2-54ee8f1fd2d5": "Zone 5",
+            "b84435fa-5ee4-4fa8-bf8f-7e6db55b2b88": "Zone 4",
+            "a24ed85d-e757-4169-967e-79e6cf23cc2b": "Zone 1",
+            "bb52497f-e115-4e37-a920-d7725cd99c96": "Zone 6"
+        }
+    },
+    "9b33e4ff-0241-49b8-ab85-1dbfa68e7e85": {
+        "name": "Home (Gen1)",
+        "zones": {
+            "85d97f16-fc54-4ade-83ca-76347fa340c8": "Front Yard Small - Zone 1",
+            "43a6abdc-781a-46cc-8745-2872cdd5e3b5": "Back Yard Edge - Zone 4",
+            "79238907-792d-4710-8923-cfb388274ba6": "Front Yard Large - Zone 2",
+            "67d9346d-8df4-40ff-80c1-d003f0959e48": "Back Yard Large - Zone 3",
+            "2cd8b03c-afd2-4f2a-ab6c-89d22e1f7d0b": "Zone 2",
+            "70cb56bb-edb0-427e-9aad-2e44309c84c8": "Zone 7",
+            "63b0d871-cd2b-45f6-a96d-122dd887c8ed": "Zone 8",
+            "a662c2f4-eeb7-4820-a2ad-12d04fd0eea7": "Zone 3",
+            "7d2f7455-a0f9-45c4-82b2-54ee8f1fd2d5": "Zone 5",
+            "b84435fa-5ee4-4fa8-bf8f-7e6db55b2b88": "Zone 4",
+            "a24ed85d-e757-4169-967e-79e6cf23cc2b": "Zone 1",
+            "bb52497f-e115-4e37-a920-d7725cd99c96": "Zone 6"
+        }
+    }
+}

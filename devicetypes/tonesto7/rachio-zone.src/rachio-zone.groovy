@@ -12,12 +12,12 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Modified: 7-01-2018
+ *	Modified: 7-02-2018
  */
 
 import java.text.SimpleDateFormat
 
-def devVer() { return "1.0.1" }
+def devVer() { return "1.1.0" }
 
 metadata {
     definition (name: "Rachio Zone", namespace: "tonesto7", author: "Anthony Santilli") {
@@ -173,7 +173,8 @@ def parse(String description) {
 }
 
 def initialize() {
-    sendEvent(name: "checkInterval", value: (17*60), data: [protocol: "cloud"], displayed: false)
+    sendEvent(name: "DeviceWatch-DeviceStatus", value: "online")
+    sendEvent(name: "DeviceWatch-Enroll", value: [protocol: "cloud", scheme:"untracked"].encodeAsJson(), displayed: false)
     verifyDataAttr()
 }
 
@@ -195,10 +196,10 @@ void updated() {
     initialize()
 }
 
-def ping() {
-    log.info "health check ping()..."
-    poll()
-}
+// def ping() {
+//     log.info "health check ping()..."
+//     poll()
+// }
 
 def generateEvent(Map results) {
     if(!state?.swVersion || state?.swVersion != devVer()) {
@@ -293,8 +294,8 @@ def lastUpdatedEvent() {
 }
 
 def markOffLine() {
-    if(isStateChange(device, "watering", "offline") || isStateChange(device, "zoneRunStatus", "Device in Offline")) {
-        log.debug("UPDATED: Watering is set to (${Offline})")
+    if(isStateChange(device, "watering", "offline") || isStateChange(device, "zoneRunStatus", "Device is Offline")) {
+        log.debug("UPDATED: Watering is set to (Offline)")
         sendEvent(name: 'watering', value: "offline", displayed: true, isStateChange: true)
         sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
         sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
@@ -304,7 +305,7 @@ def markOffLine() {
 
 def markStandby() {
     if(isStateChange(device, "watering", "standby") || isStateChange(device, "zoneRunStatus", "Device in Standby Mode")) {
-        log.debug("UPDATED: Watering is set to (${"Standby Mode"})")
+        log.debug("UPDATED: Watering is set to (Standby Mode)")
         sendEvent(name: 'watering', value: "standby", displayed: true, isStateChange: true)
         sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
         sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
@@ -483,7 +484,7 @@ def scheduleDataEvent(data) {
     if(isStateChange(device, "zoneDuration", zoneDuration.toString())) {
         sendEvent(name: 'zoneDuration', value: zoneDuration.toString(), displayed: true, isStateChange: true)
     }
-    if(!state?.inStandby && isStateChange(device, "zoneRunStatus", zoneRunStatus.toString())) {
+    if(!state?.inStandby && device?.currentState("watering")?.value != "offline" && isStateChange(device, "zoneRunStatus", zoneRunStatus.toString())) {
         sendEvent(name: 'zoneRunStatus', value: zoneRunStatus.toString(), displayed: true, isStateChange: true)
     }
     if(isStateChange(device, "zoneCycleCount", zoneCycleCount.toString())) {
@@ -509,9 +510,6 @@ def customNozzleDataEvent(data) {
     if(data && data?.name && isStateChange(device, "nozzleName", fmtString(data?.name).toString())) {
         sendEvent(name:'nozzleName', value: fmtString(data?.name).toString(), displayed: true, isStateChange: true)
     }
-    // if(data && data?.category && isStateChange(device, "nozzleCategory", data?.category.toString())) {
-    // 	sendEvent(name:'nozzleCategory', value: data?.category.toString(), displayed: true, isStateChange: true)
-    // }
 }
 
 def customSoilDataEvent(data) {
@@ -519,9 +517,6 @@ def customSoilDataEvent(data) {
     if(data && data?.name && isStateChange(device, "soilName", fmtString(data?.name).toString())) {
         sendEvent(name:'soilName', value: fmtString(data?.name).toString(), displayed: true, isStateChange: true)
     }
-    // if(data && data?.category && isStateChange(device, "soilCategory", data?.category.toString())) {
-    // 	sendEvent(name:'soilCategory', value: data?.category.toString(), displayed: true, isStateChange: true)
-    // }
 }
 
 def customSlopeDataEvent(data) {
@@ -565,12 +560,12 @@ def isCmdOk2Run() {
 }
 
 def startZone() {
-    log.trace "Zone doStartZone..."
+    log.trace "startZone()..."
     if(!isCmdOk2Run()) { return }
     def zoneNum = device?.latestValue('zoneNumber').toInteger()
     def waterTime = device?.latestValue('zoneWaterTime')
     log.debug("Starting Watering for Zone (${zoneNum}) for (${waterTime}) Minutes")
-    def res = parent?.startZone(this, zoneNum, waterTime)
+    def res = parent?.startZone(this, state?.deviceId, zoneNum, waterTime)
     if (res) {
         log.debug "runThisZone was Sent Successfully: ${res}"
         sendEvent(name:'watering', value: "on", displayed: true, isStateChange: true)

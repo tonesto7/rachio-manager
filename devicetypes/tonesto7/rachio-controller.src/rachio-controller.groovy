@@ -12,12 +12,12 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Modified: 5-09-2018
+ *	Modified: 7-02-2018
  */
 
 import java.text.SimpleDateFormat
 
-def devVer() { return "1.0.1" }
+def devVer() { return "1.1.0" }
 
 metadata {
     definition (name: "Rachio Controller", namespace: "tonesto7", author: "Anthony Santilli") {
@@ -172,7 +172,8 @@ def parse(String description) {
 }
 
 def initialize() {
-    sendEvent(name: "checkInterval", value: (17*60), data: [protocol: "cloud"], displayed: false)
+    sendEvent(name: "DeviceWatch-DeviceStatus", value: "online")
+    sendEvent(name: "DeviceWatch-Enroll", value: [protocol: "cloud", scheme:"untracked"].encodeAsJson(), displayed: false)
     verifyDataAttr()
 }
 
@@ -181,7 +182,8 @@ def verifyDataAttr() {
         updateDataValue("manufacturer", "Rachio")
     }
     if(!device?.getDataValue("model")) {
-        updateDataValue("model", device?.name as String)
+        def gen = device?.currentState("hardwareModel")?.value
+        updateDataValue("model", "${device?.name}${gen ? " ($gen)" : ""}")
     }
 }
 
@@ -194,10 +196,10 @@ void updated() {
     initialize()
 }
 
-def ping() {
-    log.info "health check ping()..."
-    poll()
-}
+// def ping() {
+//     log.info "health check ping()..."
+//     poll()
+// }
 
 def generateEvent(Map results) {
     if(!state?.swVersion || state?.swVersion != devVer()) {
@@ -270,8 +272,8 @@ def lastUpdatedEvent() {
 }
 
 def markOffLine() {
-    if(isStateChange(device, "watering", "offline") || isStateChange(device, "curZoneRunStatus", "Device in Offline")) {
-        log.debug("UPDATED: Watering is set to (${Offline})")
+    if(isStateChange(device, "watering", "offline") || isStateChange(device, "curZoneRunStatus", "Device is Offline")) {
+        log.debug("UPDATED: Watering is set to (Offline)")
         sendEvent(name: 'watering', value: "offline", displayed: true, isStateChange: true)
         sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
         sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
@@ -281,7 +283,7 @@ def markOffLine() {
 
 def markStandby() {
     if(isStateChange(device, "watering", "standby") || isStateChange(device, "curZoneRunStatus", "Device in Standby Mode")) {
-        log.debug("UPDATED: Watering is set to (${"Standby Mode"})")
+        log.debug("UPDATED: Watering is set to (Standby Mode)")
         sendEvent(name: 'watering', value: "standby", displayed: true, isStateChange: true)
         sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
         sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
@@ -425,7 +427,7 @@ def scheduleDataEvent(sData, zData, rainDelay) {
         sendEvent(name: 'scheduleType', value: curSchedType?.toString().capitalize(), displayed: true, isStateChange: true)
     }
     //sendEvent(name: 'scheduleTypeBtnDesc', value: curSchedTypeBtnDesc , displayed: false, isStateChange: true)
-    if(!state?.inStandby && isStateChange(device, "curZoneRunStatus", zoneRunStatus?.toString())) {
+    if(!state?.inStandby && device?.currentState("watering")?.value != "offline" && isStateChange(device, "curZoneRunStatus", zoneRunStatus?.toString())) {
         sendEvent(name: 'curZoneRunStatus', value: zoneRunStatus?.toString(), displayed: false, isStateChange: true)
     }
     if(isStateChange(device, "curZoneDuration", zoneDuration?.toString())) {
@@ -450,14 +452,7 @@ def scheduleDataEvent(sData, zData, rainDelay) {
 
 def getZoneData(zData, zId) {
     if (zData && zId) {
-        def zone
-        zData.each { z ->
-            if(zId == z?.id) {
-                zone = z
-            }
-        }
-        //log.debug "zone: $zone"
-        return zone
+        return zData.find { it?.id == zId }
     }
 }
 
@@ -472,7 +467,7 @@ def setRainDelayString( rainDelay) {
 def doSetRainDelay() {
     def value = device.latestValue('rainDelay')
     log.debug("Set Rain Delay ${value}")
-    def res = parent?.setRainDelay(this, value);
+    def res = parent?.setRainDelay(this, state?.deviceId, value);
     if( !res) {
         markOffLine()
     }
@@ -526,7 +521,7 @@ def runAllZones() {
     if(!isCmdOk2Run()) { return }
     def waterTime = device?.latestValue('zoneWaterTime')
     log.debug("Sending Run All Zones for (${waterTime} Minutes)")
-    def res = parent?.runAllZones(this, waterTime)
+    def res = parent?.runAllZones(this, state?.deviceId, waterTime)
     if (!res) {
         markOffLine()
     }
@@ -543,23 +538,25 @@ def pauseScheduleRun() {
 def standbyOn() {
     log.trace "standbyOn..."
     def inStandby = device?.currentState("standbyMode")?.value.toString() == "on" ? true : false
-    if (!inStandby) {
+    if(device?.currentState("watering")?.value == "offline") {
+        log.info "Device is currently Offline... Ignoring..."
+    } else if (!inStandby) {
         if(parent?.standbyOn(this, state?.deviceId)) {
             sendEvent(name: 'standbyMode', value: "on", displayed: true, isStateChange: true)
         }
-    }
-    else { log.info "Device is Already in Standby... Ignoring..." }
+    } else { log.info "Device is Already in Standby... Ignoring..." }
 }
 
 def standbyOff() {
     log.trace "standbyOff..."
     def inStandby = device?.currentState("standbyMode")?.value.toString() == "on" ? true : false
-    if (inStandby) {
+    if(device?.currentState("watering")?.value == "offline") {
+        log.info "Device is currently Offline... Ignoring..."
+    } else if (inStandby) {
         if(parent?.standbyOff(this, state?.deviceId)) {
             sendEvent(name: 'standbyMode', value: "off", displayed: true, isStateChange: true)
         }
-    }
-    else { log.info "Device is Already out of Standby... Ignoring..." }
+    } else { log.info "Device is Already out of Standby... Ignoring..." }
 }
 
 def on() {
