@@ -607,19 +607,38 @@ def cleanupObjects(id){
     if(settings?."${id}_zones") {
         settingRemove("${id}_zones")
     }
-    def wateringMap = atomicState?.isWateringMap
-    if(wateringMap && wateringMap[id]) {
-        wateringMap.remove(id)
+    def whIds = atomicState?.webhookIds
+    log.debug "whIds: $whIds"
+    if(whIds && whIds[id]) {
+        removeWebhookByDevId(id)
     }
-    def standByMap = atomicState?.inStandbyModeMap
-    if(standByMap && standByMap[id]) {
-        standByMap.remove(id)
-    }
+    removeWateringItem(id)
+    removeStandbyItem(id)
+    atomicState?.inStandbyModeMap = standByMap
 }
 
-Boolean isController(String devid) {
-    if(devid in settings?.controllers) { return true }
-    return false
+def removeWateringItem(id) {
+    def i = atomicState?.isWateringMap ?: [:]
+    if(id && i && i[id]) { i?.remove(id) }
+    atomicState?.isWateringMap = i
+}
+
+def removeStandbyItem(id) {
+    def i = atomicState?.inStandbyModeMap ?: [:]
+    if(id && i && i[id]) { i?.remove(id) }
+    atomicState?.inStandbyModeMap = i
+}
+
+def updateWateringItem(id, val) {
+    def i = atomicState?.isWateringMap ?: [:]
+    if(id && i) { i[id] = val }
+    atomicState?.isWateringMap = i
+}
+
+def updateStandbyItem(id, val) {
+    def i = atomicState?.inStandbyModeMap ?: [:]
+    if(id && i) { i[id] = val }
+    atomicState?.inStandbyModeMap = i
 }
 
 def addRemoveDevices(uninst=false) {
@@ -654,19 +673,15 @@ def addRemoveDevices(uninst=false) {
                 }
             }
             //log.debug "devicesInUse: ${devsInUse}"
-            delete = app.getChildDevices(true).findAll { !devsInUse?.toString()?.contains(it?.deviceNetworkId) }
+            delete = app.getChildDevices(true).findAll { !(it?.deviceNetworkId in devsInUse) }
         } else {
             atomicState?.selectedDevices = []
             delete = app.getChildDevices(true)
         }
         if(delete?.size() > 0) {
             log.warn "Device Delete: ${delete} | Removing (${delete?.size()}) Devices..."
-            delete.each {
-                if(it?.deviceNetworkId in settings?.controllers) {
-                    
-                    removeWebhookByDevId(it?.deviceNetworkId)
-                    cleanupObjects(it?.deviceNetworkId)
-                }
+            delete?.each {
+                cleanupObjects(it?.deviceNetworkId)
                 deleteChildDevice(it?.deviceNetworkId)
                 log.warn "Deleted the Device: ${it?.displayName}"
             }

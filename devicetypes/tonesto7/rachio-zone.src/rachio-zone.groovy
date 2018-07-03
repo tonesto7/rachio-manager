@@ -99,7 +99,7 @@ metadata {
             tileAttribute("device.watering", key: "PRIMARY_CONTROL" ) {
                 attributeState "on", label: 'Watering', action: "close", icon: "st.valves.water.open", backgroundColor: "#00A7E1", nextState: "updating"
                 attributeState "off", label: 'Off', action: "open", icon: "st.valves.water.closed", backgroundColor: "#7e7d7d", nextState:"updating"
-                attributeState "offline", label: 'Offline', action: "refresh", icon: "st.valves.water.closed", backgroundColor: "#FE2E2E"
+                attributeState "offline", label: 'Offline', icon: "st.valves.water.closed", backgroundColor: "#FE2E2E"
                 attributeState "standby", label: 'Standby Mode', icon: "st.valves.water.closed", backgroundColor: "#FFAE42"
                 attributeState "updating", label:"Working"
             }
@@ -173,8 +173,8 @@ def parse(String description) {
 }
 
 def initialize() {
-    sendEvent(name: "DeviceWatch-DeviceStatus", value: "online")
-    sendEvent(name: "DeviceWatch-Enroll", value: [protocol: "cloud", scheme:"untracked"].encodeAsJson(), displayed: false)
+    sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+    sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
     verifyDataAttr()
 }
 

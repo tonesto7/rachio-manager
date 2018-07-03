@@ -86,7 +86,7 @@ metadata {
             tileAttribute("device.watering", key: "PRIMARY_CONTROL" ) {
                 attributeState "on", label: 'Watering', action: "close", icon: "st.valves.water.open", backgroundColor: "#00A7E1", nextState: "off"
                 attributeState "off", label: 'Off', action: "runAllZones", icon: "st.valves.water.closed", backgroundColor: "#7e7d7d", nextState:"on"
-                attributeState "offline", label: 'Offline', action: "refresh", icon: "st.valves.water.closed", backgroundColor: "#FE2E2E"
+                attributeState "offline", label: 'Offline', icon: "st.valves.water.closed", backgroundColor: "#FE2E2E"
                 attributeState "standby", label: 'Standby Mode', icon: "st.valves.water.closed", backgroundColor: "#FFAE42"
             }
             tileAttribute("device.curZoneRunStatus", key: "SECONDARY_CONTROL") {
@@ -94,25 +94,25 @@ metadata {
             }
         }
         standardTile("hardwareModel", "device.hardwareModel", inactiveLabel: false, width: 2, height: 2, decoration: "flat") {
-            state "default", label: '', icon: ""
-            state "8ZoneV1", label: '', icon: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/8zone_v1.png"
-            state "16ZoneV1", label: '', icon: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/16zone_v1.png"
-            state "8ZoneV2", label: '', icon: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/8zone_v2.jpg"
-            state "16ZoneV2", label: '', icon: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/16zone_v2.jpg"
-            state "8ZoneV3", label: '', icon: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/8zone_v3.jpg"
-            state "16ZoneV3", label: '', icon: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/16zone_v3.jpg"
+            state "default", icon: ""
+            state "8ZoneV1", icon: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/8zone_v1.png"
+            state "16ZoneV1", icon: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/8zone_v1.png"
+            state "8ZoneV2", icon: "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/rachio_gen2.png"
+            state "16ZoneV2", icon: "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/rachio_gen2.png"
+            state "8ZoneV3", icon: "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/rachio_gen3.png"
+            state "16ZoneV3", icon: "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/rachio_gen3.png"
         }
         valueTile("hardwareDesc", "device.hardwareDesc", inactiveLabel: false, width: 4, height: 1, decoration: "flat") {
-            state "default", label: 'Model:\n${currentValue}', icon: ""
+            state "default", label: 'Model:\n${currentValue}'
         }
         valueTile("activeZoneCnt", "device.activeZoneCnt", inactiveLabel: true, width: 4, height: 1, decoration: "flat") {
-            state("default", label: 'Active Zones:\n${currentValue}')
+            state "default", label: 'Active Zones:\n${currentValue}'
         }
         valueTile("controllerOn", "device.controllerOn", inactiveLabel: true, width: 2, height: 1, decoration: "flat") {
-            state("default", label: 'Online Status:\n${currentValue}')
+            state "default", label: 'Online Status:\n${currentValue}'
         }
         valueTile("controllerRunStatus", "device.controllerRunStatus", inactiveLabel: true, width: 4, height: 2, decoration: "flat") {
-            state("default", label: '${currentValue}')
+            state "default", label: '${currentValue}'
         }
         valueTile("blank", "device.blank", width: 2, height: 1, decoration: "flat") {
             state("default", label: '')
@@ -143,11 +143,11 @@ metadata {
         valueTile("lastWateredDesc", "device.lastWateredDesc", width: 4, height: 1, decoration: "flat", wordWrap: true) {
             state("default", label: 'Last Watered:\n${currentValue}')
         }
-        controlTile("zoneWaterTimeSliderTile", "device.zoneWaterTime", "slider", width: 4, height: 1, range:'(0..60)') {
+        controlTile("zoneWaterTimeSliderTile", "device.curZoneWaterTime", "slider", width: 4, height: 1, range:'(0..60)') {
             state "default", label: 'Manual Zone Time', action:"setZoneWaterTime"
         }
-        valueTile("runAllZonesTile", "device.zoneWaterTime", inactiveLabel: false, width: 2 , height: 1, decoration: "flat") {
-            state "default", label: 'Run All Zones\n${currentValue} Minutes', action:'runAllZones'
+        valueTile("runAllZonesTile", "device.curZoneWaterTime", inactiveLabel: false, width: 2 , height: 1, decoration: "flat") {
+            state("default", label: 'Run All Zones\n${currentValue} Minutes', action:'runAllZones')
         }
         standardTile("standbyMode", "device.standbyMode", decoration: "flat", wordWrap: true, width: 2, height: 2) {
             state "on", label:'Turn Standby Off', action:"standbyOff", nextState: "false", icon: "http://cdn.device-icons.smartthings.com/sonos/play-icon@2x.png"
@@ -166,14 +166,16 @@ metadata {
             "zoneWaterTimeSliderTile", "runAllZonesTile", "lastUpdatedDt", "standbyMode", "refresh"])
 }
 
+def getAppImg(imgName)	{ return "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/$imgName" }
+
 // parse events into attributes
 def parse(String description) {
     log.debug "Parsing '${description}'"
 }
 
 def initialize() {
-    sendEvent(name: "DeviceWatch-DeviceStatus", value: "online")
-    sendEvent(name: "DeviceWatch-Enroll", value: [protocol: "cloud", scheme:"untracked"].encodeAsJson(), displayed: false)
+    sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+    sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
     verifyDataAttr()
 }
 
@@ -230,7 +232,7 @@ def generateEvent(Map results) {
             }
         }
 
-        if(!device?.currentState("zoneWaterTime")?.value) {
+        if(!device?.currentState("curZoneWaterTime")?.value) {
             setZoneWaterTime(parent?.settings?.defaultZoneTime.toInteger())
         }
         scheduleDataEvent(results?.schedData, results?.data.zones, results?.rainDelay)
@@ -519,7 +521,7 @@ def isCmdOk2Run() {
 def runAllZones() {
     log.trace "runAllZones..."
     if(!isCmdOk2Run()) { return }
-    def waterTime = device?.latestValue('zoneWaterTime')
+    def waterTime = device?.latestValue('curZoneWaterTime')
     log.debug("Sending Run All Zones for (${waterTime} Minutes)")
     def res = parent?.runAllZones(this, state?.deviceId, waterTime)
     if (!res) {
