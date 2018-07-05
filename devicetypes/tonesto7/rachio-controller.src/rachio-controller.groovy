@@ -170,16 +170,17 @@ def parse(String description) {
 def initialize() {
     sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
     sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
-    updateDataValue("HealthEnrolled", "true")
+    
     verifyDataAttr()
 }
 
 def verifyDataAttr() {
+    updateDataValue("HealthEnrolled", "true")
     if(!device?.getDataValue("manufacturer")) {
         updateDataValue("manufacturer", "Rachio")
     }
-    if(!device?.getDataValue("model")) {
-        def gen = device?.currentState("hardwareModel")?.value
+    def gen = device?.currentState("hardwareModel")?.value
+    if(!device?.getDataValue("model") || device?.getDataValue("model") != "${device?.name}${gen ? " ($gen)" : ""}") {
         updateDataValue("model", "${device?.name}${gen ? " ($gen)" : ""}")
     }
 }
@@ -192,11 +193,6 @@ void installed() {
 void updated() {
     initialize()
 }
-
-// def ping() {
-//     log.info "health check ping()..."
-//     poll()
-// }
 
 def generateEvent(Map results) {
     if(!state?.swVersion || state?.swVersion != devVer()) {

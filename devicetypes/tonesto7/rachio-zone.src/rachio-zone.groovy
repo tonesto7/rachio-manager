@@ -176,16 +176,17 @@ def parse(String description) {
 def initialize() {
     sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
     sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
-    updateDataValue("HealthEnrolled", "true")
     verifyDataAttr()
 }
 
 def verifyDataAttr() {
+    updateDataValue("HealthEnrolled", "true")
     if(!device?.getDataValue("manufacturer")) {
         updateDataValue("manufacturer", "Rachio")
     }
-    if(!device?.getDataValue("model")) {
-        updateDataValue("model", device?.name as String)
+    def gen = device?.currentState("hardwareModel")?.value
+    if(!device?.getDataValue("model") || device?.getDataValue("model") != "${device?.name}${gen ? " ($gen)" : ""}") {
+        updateDataValue("model", "${device?.name}${gen ? " ($gen)" : ""}")
     }
 }
 
