@@ -1,7 +1,7 @@
 /**
  *  Rachio Manager SmartApp
  *
- *  Copyright© 2018 Rachio Inc.
+ *  Copyright\u00A9 2018 Rachio Inc.
  *  Written by Anthony Santilli (@tonesto7)
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -13,7 +13,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Modified: 07-02-2018
+ *	Modified: 07-05-2018
  */
 
 import groovy.json.*
@@ -36,6 +36,7 @@ preferences {
     page(name: "apiKeyPage")
     page(name: "authPage")
     page(name: "noOauthPage")
+    page(name: "devMigrationPage")
     page(name: "devicePage")
     page(name: "supportPage")
 }
@@ -50,7 +51,7 @@ def appInfoSect()	{
     section() {
         def str = ""
         str += "${app?.name}"
-        str += "\nCopyright© 2018 Anthony Santilli"
+        str += "\nCopyright\u00A9 2018 Anthony Santilli"
         str += "\nVersion: ${appVer()}"
         paragraph str, image: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/Rachio-logo-100px.png"
     }
@@ -58,14 +59,16 @@ def appInfoSect()	{
 
 def startPage() {
     getAccessToken()
-    
     if(!state?.accessToken) {
         noOauthPage()
     } else if(atomicState?.authToken) {
-        devicePage()
+        if(!settings?.controllers && settings?.sprinklers) {
+            devMigrationPage()
+        } else {
+            devicePage()
+        }
     } else { authPage() }
 }
-
 
 def noOauthPage() {
     return dynamicPage(name: "noOauthPage", title: "Oauth Not Enabled", uninstall: true) {
@@ -121,6 +124,31 @@ def apiKeyPage() {
 def removeSect() {
     remove("Remove this App and Devices!", "WARNING!!!", "Last Chance to Stop!\nThis action is not reversible\n\nThis App and All Devices will be removed")
 }
+
+def devMigrationPage() {
+    return dynamicPage(name: "devMigrationPage", title: "Migration Page", nextPage: "devicePage", install: false, uninstall: false) {
+        section() {
+            paragraph "This SmartApp was updated to support multiple controllers.\nYour previous controller and zone selections are being migrated to the new data structure.", required: true, state: null
+        }
+        section() {
+            log.debug "Migrating Controller and Zone Selections to New Data Structure..."
+            List devs = []
+            String id = settings?.sprinklers
+            devs.push(id as String)
+            app?.updateSetting("controllers", [type: "enum", value: devs])
+            log.debug "Controllers: ${settings?.controllers}"
+            if(settings?.selectedZones) {
+                List zones = settings?.selectedZones?.collect { it as String }
+                if(zones) {
+                    app?.updateSetting("${id}_zones", [type: "enum", value: zones])
+                }
+                log.debug "Controller($id) Zones: ${settings?."${id}_zones"}"
+            }
+            paragraph "Setting Migration Complete...\n\nTap Next to Proceed to Device Configuration", state: "complete"
+        }
+    }
+}
+
 // This method is called after "auth" page is done with Oauth2 authorization, then page "deviceList" with content of devicePage()
 def devicePage() {
     //log.trace "devicePage()..."
@@ -167,6 +195,14 @@ def devicePage() {
         }
         removeSect()
     }
+}
+
+void settingUpdate(name, value, type=null) {
+	log.trace "settingUpdate($name, $value, $type)..."
+	if(name && type) {
+		app?.updateSetting("$name", [type: "$type", value: value])
+	}
+	else if (name && type == null){ app?.updateSetting(name.toString(), value) }
 }
 
 void settingRemove(name) {

@@ -1,7 +1,7 @@
 /**
  *  Rachio Zone Device Handler
  *
- *  Copyright© 2018 Anthony Santilli
+ *  Copyright\u00A9 2018 Anthony Santilli
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -12,7 +12,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Modified: 7-02-2018
+ *	Modified: 7-05-2018
  */
 
 import java.text.SimpleDateFormat
@@ -196,11 +196,6 @@ void updated() {
     initialize()
 }
 
-// def ping() {
-//     log.info "health check ping()..."
-//     poll()
-// }
-
 def generateEvent(Map results) {
     if(!state?.swVersion || state?.swVersion != devVer()) {
         initialize()
@@ -237,7 +232,7 @@ def generateEvent(Map results) {
         availableWaterEvent(results?.data?.availableWater)
         rootZoneDepthEvent(results?.data?.rootZoneDepth)
         zoneSquareFeetEvent(results?.data?.yardAreaSquareFeet)
-        // lastWateredDurationEvent(results?.data?.lastWateredDuration)
+        lastWateredDurationEvent(results?.data?.lastWateredDuration)
         lastWateredDateEvent(results?.data?.lastWateredDate, results?.data?.lastWateredDuration)
         zoneTotalDurationEvent(results?.data?.runtime)
         saturatedDepthOfWaterEvent(results?.data?.saturatedDepthOfWater)
@@ -294,23 +289,27 @@ def lastUpdatedEvent() {
 }
 
 def markOffLine() {
-    if(isStateChange(device, "watering", "offline") || isStateChange(device, "zoneRunStatus", "Device is Offline")) {
-        log.debug("UPDATED: Watering is set to (Offline)")
-        sendEvent(name: 'watering', value: "offline", displayed: true, isStateChange: true)
-        sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
-        sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
-        sendEvent(name: 'zoneRunStatus', value: "Device is Offline", displayed: false, isStateChange: true)
-    }
+	if(isStateChange(device, "watering", "offline")) { 
+		Logger("UPDATED: Watering is set to (Offline)")
+		sendEvent(name: 'watering', value: "offline", displayed: true, isStateChange: true)
+		sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
+		sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
+	}
+	if(isStateChange(device, "zoneRunStatus", "Device in Offline")) {
+		sendEvent(name: 'zoneRunStatus', value: "Device is Offline", displayed: false, isStateChange: true)
+	}
 }
 
 def markStandby() {
-    if(isStateChange(device, "watering", "standby") || isStateChange(device, "zoneRunStatus", "Device in Standby Mode")) {
-        log.debug("UPDATED: Watering is set to (Standby Mode)")
-        sendEvent(name: 'watering', value: "standby", displayed: true, isStateChange: true)
-        sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
-        sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
-        sendEvent(name: 'zoneRunStatus', value: "Device in Standby Mode", displayed: false, isStateChange: true)
-    }
+	if(isStateChange(device, "watering", "standby")) {
+		Logger("UPDATED: Watering is set to (Standby Mode)")
+		sendEvent(name: 'watering', value: "standby", displayed: true, isStateChange: true)
+		sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
+		sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
+	}
+	if(isStateChange(device, "zoneRunStatus", "Device in Standby Mode")) {
+		sendEvent(name: 'zoneRunStatus', value: "Device in Standby Mode", displayed: false, isStateChange: true)
+	}
 }
 
 def isWateringEvent(status, zoneId) {
@@ -319,7 +318,7 @@ def isWateringEvent(status, zoneId) {
     def isOn = (status == "PROCESSING" && device?.deviceNetworkId == zoneId) ? true : false
     def newState = isOn ? "on" : "off"
     if(isStateChange(device, "watering", newState.toString())) {
-        log.debug("UPDATED: Is Watering is set to (${newState}) | Original State: (${curState})")
+        log.debug("UPDATED: Watering is set to (${newState}) | Original State: (${curState})")
         sendEvent(name: 'watering', value: newState, displayed: true, isStateChange: true)
         sendEvent(name: 'switch', value: (isOn ? "on" : "off"), displayed: false, isStateChange: true)
         sendEvent(name: 'valve', value: (isOn ? "open" : "closed"), displayed: false, isStateChange: true)

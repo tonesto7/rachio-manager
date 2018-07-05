@@ -1,7 +1,7 @@
 /**
  *  Rachio Controller Device Handler
  *
- *  Copyright© 2018 Anthony Santilli
+ *  Copyright\u00A9 2018 Anthony Santilli
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -12,7 +12,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Modified: 7-02-2018
+ *	Modified: 7-05-2018
  */
 
 import java.text.SimpleDateFormat
@@ -279,8 +279,10 @@ def markOffLine() {
         sendEvent(name: 'watering', value: "offline", displayed: true, isStateChange: true)
         sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
         sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
-        sendEvent(name: 'curZoneRunStatus', value: "Device is Offline", displayed: false, isStateChange: true)
     }
+	if(isStateChange(device, "curZoneRunStatus", "Device in Offline")) {
+		sendEvent(name: 'curZoneRunStatus', value: "Device is Offline", displayed: false, isStateChange: true)
+	}
 }
 
 def markStandby() {
@@ -289,6 +291,8 @@ def markStandby() {
         sendEvent(name: 'watering', value: "standby", displayed: true, isStateChange: true)
         sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
         sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
+    }
+	if(isStateChange(device, "curZoneRunStatus", "Device in Standby Mode")) {
         sendEvent(name: 'curZoneRunStatus', value: "Device in Standby Mode", displayed: false, isStateChange: true)
     }
 }
@@ -300,7 +304,7 @@ def isWateringEvent(status, zoneId) {
     def newState = isOn ? "on" : "off"
     def valveState = isOn ? "open" : "close"
     if(isStateChange(device, "watering", newState.toString())) {
-        log.debug("UPDATED: Is Watering is set to (${newState}) | Original State: (${curState})")
+        log.debug("UPDATED: Watering is set to (${newState}) | Original State: (${curState})")
         sendEvent(name: 'watering', value: newState, displayed: true, isStateChange: true)
         sendEvent(name: 'valve', value: valveState, displayed: false, isStateChange: true)
         sendEvent(name: 'switch', value: newState, displayed: false, isStateChange: true)
@@ -426,28 +430,35 @@ def scheduleDataEvent(sData, zData, rainDelay) {
     def zoneCycleCount = !sData?.totalCycleCount ? 0 : sData?.totalCycleCount
     def zoneIsCycling =  !sData?.cycling ? false : sData?.cycling
     if(isStateChange(device, "scheduleType", curSchedType?.toString().capitalize())) {
+        Logger("UPDATED: ScheduleType is now (${curSchedType})")
         sendEvent(name: 'scheduleType', value: curSchedType?.toString().capitalize(), displayed: true, isStateChange: true)
     }
     //sendEvent(name: 'scheduleTypeBtnDesc', value: curSchedTypeBtnDesc , displayed: false, isStateChange: true)
     if(!state?.inStandby && device?.currentState("watering")?.value != "offline" && isStateChange(device, "curZoneRunStatus", zoneRunStatus?.toString())) {
+        Logger("UPDATED: ZoneRunStatus is now (${zoneRunStatus})")
         sendEvent(name: 'curZoneRunStatus', value: zoneRunStatus?.toString(), displayed: false, isStateChange: true)
     }
     if(isStateChange(device, "curZoneDuration", zoneDuration?.toString())) {
+        Logger("UPDATED: Active Zone Duration is now (${zoneDuration})")
         sendEvent(name: 'curZoneDuration', value: zoneDuration?.toString(), displayed: true, isStateChange: true)
     }
     if(isStateChange(device, "curZoneName", zoneName?.toString())) {
+        Logger("UPDATED: Current Zone Name is now (${zoneName})")
         sendEvent(name: 'curZoneName', value: zoneName?.toString(), displayed: true, isStateChange: true)
     }
     if(isStateChange(device, "curZoneNumber", zoneNum?.toString())) {
+        Logger("UPDATED: Active Zone Number is now (${zoneNum})")
         sendEvent(name: 'curZoneNumber', value: zoneNum, displayed: true, isStateChange: true)
     }
     if(isStateChange(device, "curZoneCycleCount", zoneCycleCount?.toString())) {
+        Logger("UPDATED: Zone Cycle Count is now (${zoneCycleCount})")
         sendEvent(name: 'curZoneCycleCount', value: zoneCycleCount, displayed: true, isStateChange: true)
     }
     if(isStateChange(device, "curZoneIsCycling", zoneIsCycling?.toString().capitalize())) {
         sendEvent(name: 'curZoneIsCycling', value: zoneIsCycling?.toString().capitalize(), displayed: true, isStateChange: true)
     }
     if(isStateChange(device, "curZoneStartDate", (zoneStartDate ? epochToDt(zoneStartDate).toString() : "Not Active"))) {
+        Logger("UPDATED: Zone StartDate is now (${(zoneStartDate ? epochToDt(zoneStartDate).toString() : "Not Active")})")
         sendEvent(name: 'curZoneStartDate', value: (zoneStartDate ? epochToDt(zoneStartDate).toString() : "Not Active"), displayed: true, isStateChange: true)
     }
 }
