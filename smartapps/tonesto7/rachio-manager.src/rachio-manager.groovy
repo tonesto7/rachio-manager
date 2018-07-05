@@ -645,7 +645,6 @@ def cleanupObjects(id){
         settingRemove("${id}_zones")
     }
     def whIds = atomicState?.webhookIds
-    log.debug "whIds: $whIds"
     if(whIds && whIds[id]) {
         removeWebhookByDevId(id)
     }
