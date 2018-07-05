@@ -445,10 +445,11 @@ def uninstalled() {
 }
 
 def onAppTouch(event) {
-    poll()
+    updated()
 }
 
 def scheduler() {
+    runEvery1Minute("heartbeat")
     runEvery15Minutes("heartbeat")
     //runEvery30Minutes("heartbeat")
 }
@@ -815,6 +816,9 @@ def pollChildren(childDev, devData) {
             def rainDelay = getCurrentRainDelay(devStatus)
             def status = devStatus?.status
             def onlStatus = status?.toString()?.toLowerCase() == "online" ? "online" : "offline"
+            if (!childDev?.getDataValue("HealthEnrolled")) {
+				childDev.updated()
+			}
             def pauseInStandby = settings?.pauseInStandby == false ? false : true
             def inStandby = devData?.on.toString() != "true" ? true : false
             def data = []
@@ -829,7 +833,6 @@ def pollChildren(childDev, devData) {
                     def newLabel = getDeviceLabelStr(devData?.name).toString()
                     if(devLabel != newLabel) {
                         childDev?.label = newLabel
-                        childDev?.sendEvent(name: "DeviceWatch-DeviceStatus", value: onlStatus, displayed: false)
                         log.info "Controller Label has changed from (${devLabel}) to [${newLabel}]"
                     }
                     data = [data: devData, schedData: schedData, rainDelay: rainDelay, status: status, standby: inStandby, pauseInStandby: pauseInStandby]
@@ -840,7 +843,6 @@ def pollChildren(childDev, devData) {
                             def newLabel = getDeviceLabelStr(zone?.value).toString()
                             if(devLabel != newLabel) {
                                 childDev?.label = newLabel
-                                childDev?.sendEvent(name: "DeviceWatch-DeviceStatus", value: onlStatus, displayed: false)
                                 log.info "Zone Label has changed from (${devLabel}) to [${newLabel}]"
                             }
                             data = [data: zoneData, schedData: schedData, devId: contDev?.key, status: status, standby: inStandby, pauseInStandby: pauseInStandby]
@@ -850,6 +852,7 @@ def pollChildren(childDev, devData) {
             }
             if (childDev && data != []) {
                 childDev?.generateEvent(data)
+                childDev?.sendEvent(name: "DeviceWatch-DeviceStatus", value: onlStatus, displayed: false)
             }
         } else { log.warn "pollChildren cannot update children because it is missing the required parameters..." }
     } catch(Exception ex) {
@@ -1003,7 +1006,7 @@ def standbyOn(child, deviceId) {
         def jsonData = new JsonBuilder("id":deviceId)
         def res = sendJson("device/off", jsonData.toString(), deviceId, true)
         // poll()
-        child?.log("${child?.device.displayName} Standby OFF (Result: $res)")
+        // child?.log("${child?.device.displayName} Standby OFF (Result: $res)")
         return res
     }
 }
@@ -1013,8 +1016,8 @@ def standbyOff(child, deviceId) {
     if(deviceId) {
         def jsonData = new JsonBuilder("id":deviceId)
         def res = sendJson("device/on", jsonData.toString(), deviceId, true)
-        // poll()
-        child?.log("${child?.device.displayName} Standby OFF (Result: $res)")
+        // // poll()
+        // child?.log("${child?.device.displayName} Standby OFF (Result: $res)")
         return res
     }
 }
@@ -1025,7 +1028,7 @@ def on(child, deviceId) {
 
 def off(child, deviceId) {
     log.trace "Received off() command from (${child?.device?.displayName})..."
-    child?.log("Stop Watering - Received from (${child?.device.displayName})")
+    // child?.log("Stop Watering - Received from (${child?.device.displayName})")
     if(deviceId) {
         def jsonData = new JsonBuilder("id":deviceId)
         def res = sendJson("device/stop_water", jsonData.toString(), deviceId)

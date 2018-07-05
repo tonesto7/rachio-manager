@@ -33,9 +33,9 @@ metadata {
         attribute "zoneName", "string"
         attribute "watering", "string"
 
-        attribute "lastWateredDuration", "number"
-        attribute "lastWateredDt", "string"
-        attribute "lastWateredDesc", "string"
+        // attribute "lastWateredDuration", "number"
+        // attribute "lastWateredDt", "string"
+        // attribute "lastWateredDesc", "string"
         attribute "zoneSquareFeet", "number"
         attribute "zoneWaterTime", "number"
         attribute "zoneTotalDuration", "number"
@@ -49,25 +49,16 @@ metadata {
 
         //current_schedule data
         attribute "scheduleType", "string"
-        attribute "scheduleTypeBtnDesc", "string"
-        attribute "selectedZone", "number"
-        attribute "zoneId", "string"
-        attribute "startDate", "number"
-        attribute "duration", "number"
+        
         attribute "zoneDuration", "number"
         attribute "zoneStartDate", "string"
-        attribute "zoneRunElapsed", "string"
-        attribute "cycleCount", "number"
-        attribute "totalCycleCount", "number"
-        attribute "durationNoCycle", "number"
+        attribute "zoneCycleCount", "number"
 
         //custom nozzle data
         attribute "nozzleName", "string"
-        // attribute "nozzleCategory", "string"
 
         //custom soil data
         attribute "soilName", "string"
-        // attribute "soilCategory", "string"
 
         //custom slope data
         attribute "slopeName", "string"
@@ -81,7 +72,8 @@ metadata {
         attribute "lastUpdatedDt", "string"
 
         command "stopWatering"
-        command "log"
+        command "decZoneWaterTime"
+        command "incZoneWaterTime"
         command "setZoneWaterTime", ["number"]
         command "startZone"
 
@@ -107,32 +99,41 @@ metadata {
                 attributeState("default", label:'${currentValue}')
             }
         }
-        valueTile("zoneNumTile", "device.zoneNumber", inactiveLabel: false, width: 1, height: 1) {
-            state "selectedZone", label: 'Zone:\n${currentValue}'
-        }
-        valueTile("zoneName", "device.zoneName", inactiveLabel: true, width: 4, height: 1, decoration: "flat", wordWrap: true) {
+        valueTile("zoneName", "device.zoneName", inactiveLabel: true, width: 3, height: 1, decoration: "flat", wordWrap: true) {
             state("default", label: 'Zone:\n${currentValue}')
         }
-        valueTile("blank22", "device.blank", width: 2, height: 2, decoration: "flat") {
+
+        valueTile("blank11", "device.blank", width: 1, height: 1, decoration: "flat") {
             state("default", label: '')
         }
-        standardTile("switch", "device.switch", inactiveLabel: false, decoration: "flat") {
-            state "off", icon: "st.switch.off"
-            state "on", action: "stopWatering", icon: "st.switch.on"
-        }
+        
         //zone Water time control
-        valueTile("lastWateredDesc", "device.lastWateredDesc", width: 5, height: 1, decoration: "flat", wordWrap: true) {
-            state("default", label: 'Last Watered:\n${currentValue}')
+        valueTile("scheduleType", "device.scheduleType", width: 2, height: 1, decoration: "flat", wordWrap: true) {
+            state("default", label: 'Schedule Type:\n${currentValue}')
+        }
+        valueTile("efficiency", "device.efficiency", width: 2, height: 1, decoration: "flat", wordWrap: true) {
+            state("default", label: 'Efficiency:\n${currentValue}')
+        }
+        valueTile("zoneSquareFeet", "device.zoneSquareFeet", inactiveLabel: false, width: 2 , height: 1, decoration: "flat") {
+            state "default", label: 'Zone Area\n${currentValue} sq ft'
+        }
+        standardTile("leftZoneTimeButton", "device.zoneWaterTime", inactiveLabel: false, decoration: "flat") {
+            state "default", action:"decZoneWaterTime", icon:"st.thermostat.thermostat-left"
+        }
+        valueTile("zoneWaterTime", "device.zoneWaterTime", width: 2, height: 1, decoration: "flat") {
+            state "default", label:'Manual Zone Time:\n${currentValue} Minutes'
         }
         controlTile("zoneWaterTimeSliderTile", "device.zoneWaterTime", "slider", width: 4, height: 1, range:'(0..60)') {
             state "default", label: 'Manual Zone Time', action:"setZoneWaterTime"
+        }
+        standardTile("rightZoneTimeButton", "device.zoneWaterTime", inactiveLabel: false, decoration: "flat") {
+            state "default", action:"incZoneWaterTime", icon:"st.thermostat.thermostat-right"
         }
         valueTile("zoneWaterTimeVal", "device.zoneWaterTime", inactiveLabel: false, width: 2 , height: 1, decoration: "flat") {
             state "default", label: 'Water Time\n${currentValue} Minutes'
         }
         valueTile("startZoneTile", "device.zoneWaterTime", inactiveLabel: false, width: 2 , height: 1, decoration: "flat") {
             state "default", label: 'Run This Zone\n${currentValue} Minutes', action:'startZone'
-            //state "default", label: 'Run Zone\n${currentValue} Minutes', action:'runThisZone', backgroundColor: "#4DC9FF"
         }
 
         //nozzle Tiles
@@ -148,11 +149,11 @@ metadata {
             state "default", label: 'Slope:\n${currentValue}'
         }
         //Crop Tiles
-        valueTile("cropName", "device.cropName", inactiveLabel: true, width: 3, height: 1, decoration: "flat") {
+        valueTile("cropName", "device.cropName", inactiveLabel: true, width: 2, height: 1, decoration: "flat") {
             state "default", label: 'Crop:\n${currentValue}'
         }
         //Shade Tiles
-        valueTile("shadeName", "device.shadeName", inactiveLabel: true, width: 3, height: 1, decoration: "flat") {
+        valueTile("shadeName", "device.shadeName", inactiveLabel: true, width: 2, height: 1, decoration: "flat") {
             state "default", label: 'Shade:\n${currentValue}'
         }
 
@@ -164,7 +165,7 @@ metadata {
         }
     }
     main "valveTile"
-    details(["valveTile", "zoneImage", "lastWateredDesc", "nozzleName", "soilName", "slopeName", "cropName", "shadeName", "zoneWaterTimeSliderTile", "startZoneTile", "lastUpdatedDt", "refresh"])
+    details(["valveTile", "zoneImage", "zoneName", "scheduleType", "nozzleName", "soilName", "slopeName", "cropName", "shadeName", "zoneSquareFeet", "leftZoneTimeButton", "zoneWaterTime", "rightZoneTimeButton", "startZoneTile", "lastUpdatedDt", "refresh"])
 }
 
 // parse events into attributes
@@ -175,6 +176,7 @@ def parse(String description) {
 def initialize() {
     sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
     sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
+    updateDataValue("HealthEnrolled", "true")
     verifyDataAttr()
 }
 
@@ -213,7 +215,7 @@ def generateEvent(Map results) {
 
         state?.zoneImageUrl = results?.data?.imageUrl
         def isOnline = results?.status == "ONLINE" ? true : false
-        state?.isOnlineStatus = isOnline
+        state?.isOnline = isOnline
         if(!isOnline) {
             markOffLine()
         } else {
@@ -232,8 +234,8 @@ def generateEvent(Map results) {
         availableWaterEvent(results?.data?.availableWater)
         rootZoneDepthEvent(results?.data?.rootZoneDepth)
         zoneSquareFeetEvent(results?.data?.yardAreaSquareFeet)
-        lastWateredDurationEvent(results?.data?.lastWateredDuration)
-        lastWateredDateEvent(results?.data?.lastWateredDate, results?.data?.lastWateredDuration)
+        // lastWateredDurationEvent(results?.data?.lastWateredDuration)
+        // lastWateredDateEvent(results?.data?.lastWateredDate, results?.data?.lastWateredDuration)
         zoneTotalDurationEvent(results?.data?.runtime)
         saturatedDepthOfWaterEvent(results?.data?.saturatedDepthOfWater)
         depthOfWaterEvent(results?.data?.depthOfWater)
@@ -283,14 +285,14 @@ def lastUpdatedEvent() {
     state?.lastUpdatedDt = lastDt?.toString()
     //if(!lastUpd.equals(lastDt)) {
     if(isStateChange(device, "lastUpdatedDt", lastDt.toString())) {
-        log.info "${device?.displayName} is (${state?.isOnlineStatus ? "Online and ${state?.inStandby ? "in Standby Mode" : "Active"}" : "OFFLINE"}) - Last Updated: (${lastDt})"
+        log.info "${device?.displayName} is (${state?.isOnline ? "Online and ${state?.inStandby ? "in Standby Mode" : "Active"}" : "OFFLINE"}) - Last Updated: (${lastDt})"
         sendEvent(name: 'lastUpdatedDt', value: lastDt?.toString(), displayed: false)
     }
 }
 
 def markOffLine() {
 	if(isStateChange(device, "watering", "offline")) { 
-		Logger("UPDATED: Watering is set to (Offline)")
+		log.trace("UPDATED: Watering is set to (Offline)")
 		sendEvent(name: 'watering', value: "offline", displayed: true, isStateChange: true)
 		sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
 		sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
@@ -302,7 +304,7 @@ def markOffLine() {
 
 def markStandby() {
 	if(isStateChange(device, "watering", "standby")) {
-		Logger("UPDATED: Watering is set to (Standby Mode)")
+		log.trace("UPDATED: Watering is set to (Standby Mode)")
 		sendEvent(name: 'watering', value: "standby", displayed: true, isStateChange: true)
 		sendEvent(name: 'valve', value: "closed", displayed: false, isStateChange: true)
 		sendEvent(name: 'switch', value: "off", displayed: false, isStateChange: true)
@@ -326,6 +328,7 @@ def isWateringEvent(status, zoneId) {
 }
 
 def lastWateredDateEvent(val, dur) {
+    log.trace "lastWateredDateEvent($val, $dur)"
     if( val == null || dur == null) { return }
     def newState = "${epochToDt(val)}"
     def newDesc = "${epochToDt(val)}" //\nDuration: ${getDurationDesc(dur?.toLong())}"
@@ -475,11 +478,8 @@ def scheduleDataEvent(data) {
     def zoneCycleCount = (zoneId != device?.deviceNetworkId && !data?.totalCycleCount) ? 0 : data?.totalCycleCount
     def isCycling =  (zoneId == device?.deviceNetworkId && data?.cycling) ? true : false
     if(isStateChange(device, "scheduleType", curSchedType?.toString().toLowerCase())) {
-        sendEvent(name: 'scheduleType', value: curSchedType?.toString().toLowerCase(), displayed: true, isStateChange: true)
+        sendEvent(name: 'scheduleType', value: curSchedType?.toString().toLowerCase()?.capitalize(), displayed: true, isStateChange: true)
     }
-    // if(isStateChange(device, "scheduleTypeBtnDesc", curSchedTypeBtnDesc?.toString())) {
-    // 	sendEvent(name: 'scheduleTypeBtnDesc', value: curSchedTypeBtnDesc , displayed: false, isStateChange: true)
-    // }
     if(isStateChange(device, "zoneDuration", zoneDuration.toString())) {
         sendEvent(name: 'zoneDuration', value: zoneDuration.toString(), displayed: true, isStateChange: true)
     }
@@ -550,8 +550,24 @@ void poll() {
     parent?.poll(this)
 }
 
+def incZoneWaterTime() {
+    // log.debug("Decrease Zone Runtime");
+    def value = device.latestValue('zoneWaterTime')
+    setZoneWaterTime(value + 1)
+}
+
+def decZoneWaterTime() {
+    // log.debug("Increase Zone Runtime");
+    def value = device.latestValue('zoneWaterTime')
+    setZoneWaterTime(value - 1)
+}
+
 def isCmdOk2Run() {
     //log.trace "isCmdOk2Run..."
+    if(state?.isOnline == false) {
+        log.warn "Skipping the request... Because the zone is unable to send commands while it's in an Offline State."
+        return false
+    }
     if(state?.pauseInStandby == true && state?.inStandby == true) {
         log.warn "Skipping the request... Because the zone is unable to send commands while the controller is in standby mode."
         return false
@@ -621,28 +637,6 @@ def close() {
 def stopWatering() {
     log.trace "stopWatering"
     close()
-}
-
-//This will Print logs from the parent app when added to parent method that the child calls
-def log(message, level = "trace") {
-    switch (level) {
-        case "trace":
-            log.trace "PARENT_Log>> " + message
-            break
-        case "debug":
-            log.debug "PARENT_Log>> " + message
-            break
-        case "warn":
-            log.warn "PARENT_Log>> " + message
-            break
-        case "error":
-            log.error "PARENT_Log>> " + message
-            break
-        default:
-            log.error "PARENT_Log>> " + message
-            break
-    }
-    return null // always child interface call with a return value
 }
 
 def epochToDt(val) {
