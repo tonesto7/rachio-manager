@@ -213,7 +213,7 @@ void settingRemove(name) {
 void appCleanup() {
     log.trace "appCleanup()"
     def stateItems = ["deviceId", "selectedDevice", "selectedZones", "inStandbyMode", "webhookId", "isWatering"]
-    def setItems = ["sprinklers"]
+    def setItems = ["sprinklers", "selectedZones"]
     stateItems?.each { if(state?.containsKey(it as String)) {state.remove(it)} }
     setItems?.each { if(settings?.containsKey(it as String)) {settingRemove(it)} }
 }
