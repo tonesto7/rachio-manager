@@ -1,8 +1,8 @@
 /**
- *  Rachio (Connect) Smart App
+ *  Rachio Manager SmartApp
  *
- *  Copyright© 2018 Franz Garsombke
- *  With the Assistance of Anthony Santilli (@tonesto7)
+ *  Copyright\u00A9 2018 Rachio Inc.
+ *  Written by Anthony Santilli (@tonesto7)
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -13,7 +13,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Modified: 05-09-2018
+ *	Modified: 07-05-2018
  */
 
 import groovy.json.*
@@ -29,14 +29,14 @@ definition(
     iconX2Url: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/Rachio-logo-200px.png",
     iconX3Url: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/Rachio-logo-300px.png",
     singleInstance: true,
-    usesThirdPartyAuthentication: true,
-    pausable: false)
+    usesThirdPartyAuthentication: true)
 
 preferences {
     page(name: "startPage")
     page(name: "apiKeyPage")
     page(name: "authPage")
     page(name: "noOauthPage")
+    page(name: "devMigrationPage")
     page(name: "devicePage")
     page(name: "supportPage")
 }
@@ -45,13 +45,13 @@ mappings {
     path("/rachioReceiver") { action: [ POST: "rachioReceiveHandler" ] }
 }
 
-def appVer() { return "1.0.1" }
+def appVer() { return "1.1.0" }
 
 def appInfoSect()	{
     section() {
         def str = ""
         str += "${app?.name}"
-        str += "\nCopyright© 2018 Anthony Santilli"
+        str += "\nCopyright\u00A9 2018 Anthony Santilli"
         str += "\nVersion: ${appVer()}"
         paragraph str, image: "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/Rachio-logo-100px.png"
     }
@@ -62,10 +62,13 @@ def startPage() {
     if(!state?.accessToken) {
         noOauthPage()
     } else if(atomicState?.authToken) {
-        devicePage()
+        if(!settings?.controllers && settings?.sprinklers) {
+            devMigrationPage()
+        } else {
+            devicePage()
+        }
     } else { authPage() }
 }
-
 
 def noOauthPage() {
     return dynamicPage(name: "noOauthPage", title: "Oauth Not Enabled", uninstall: true) {
@@ -121,6 +124,31 @@ def apiKeyPage() {
 def removeSect() {
     remove("Remove this App and Devices!", "WARNING!!!", "Last Chance to Stop!\nThis action is not reversible\n\nThis App and All Devices will be removed")
 }
+
+def devMigrationPage() {
+    return dynamicPage(name: "devMigrationPage", title: "Migration Page", nextPage: "devicePage", install: false, uninstall: false) {
+        section() {
+            paragraph "This SmartApp was updated to support multiple controllers.\nYour previous controller and zone selections are being migrated to the new data structure.", required: true, state: null
+        }
+        section() {
+            log.debug "Migrating Controller and Zone Selections to New Data Structure..."
+            List devs = []
+            String id = settings?.sprinklers
+            devs.push(id as String)
+            app?.updateSetting("controllers", [type: "enum", value: devs])
+            log.debug "Controllers: ${settings?.controllers}"
+            if(settings?.selectedZones) {
+                List zones = settings?.selectedZones?.collect { it as String }
+                if(zones) {
+                    app?.updateSetting("${id}_zones", [type: "enum", value: zones])
+                }
+                log.debug "Controller($id) Zones: ${settings?."${id}_zones"}"
+            }
+            paragraph "Setting Migration Complete...\n\nTap Next to Proceed to Device Configuration", state: "complete"
+        }
+    }
+}
+
 // This method is called after "auth" page is done with Oauth2 authorization, then page "deviceList" with content of devicePage()
 def devicePage() {
     //log.trace "devicePage()..."
@@ -131,27 +159,29 @@ def devicePage() {
     // Step 1: get (list) of available devices associated with the login account.
     def devData = getRachioDeviceData()
     def devices = getDeviceInputEnum(devData)
-    //log.debug "rachioDeviceList() device list: ${devices}"
+    log.debug "rachioDeviceList(): ${devices}"
 
     //step2: render the page for user to select which device
-    return dynamicPage(name: "devicePage", title: "${(atomicState?.authToken && atomicState?.devices && atomicState?.selectedZones) ? "Select" : "Manage"} Your Devices", install: true, uninstall: true) {
+    return dynamicPage(name: "devicePage", title: "${(atomicState?.authToken && atomicState?.selectedDevices) ? "Select" : "Manage"} Your Devices", install: true, uninstall: true) {
         appInfoSect()
-        section("Device Selection:"){
-            paragraph "Select your sprinkler controller and zones."
-            input(name: "sprinklers", title: "Select Your Sprinkler", type: "enum", description: "Tap to Select", required: true, multiple: false, options: devices, submitOnChange: true,
-                    image: (atomicState?.modelInfo ? atomicState?.modelInfo.img : ""))
-            if(settings?.sprinklers) {
-                atomicState?.deviceId = settings?.sprinklers
-                updateHwInfoMap(devData?.devices)
-                def zoneData = zoneSelections(devData)
-                input(name: "selectedZones", title: "Select Your Zones", type: "enum", description: "Tap to Select", required: true, multiple: true, options: zoneData, submitOnChange: true)
-                if(settings?.selectedZones) {
-                    def d = devData?.devices?.find { it?.id == settings?.sprinklers }
-                    if(d) { devDesc(d) }
+        section("Controller Configuration:"){
+            input "controllers", "enum", title: "Select your controllers", description: "Tap to Select", required: true, multiple: true, options: devices, submitOnChange: true, image: (atomicState?.modelInfo ? atomicState?.modelInfo.img : "")
+            atomicState?.controllerIds = settings?.controllers
+        }
+        if(settings?.controllers) {
+            updateHwInfoMap(devData?.devices)
+            devices?.sort { it?.key }?.each { cont->
+                if(cont?.key in settings?.controllers) {
+                    section("${cont?.value} Zones:"){
+                        if(settings?."${cont?.key}_zones") {
+                            def dData = devData?.devices?.find { it?.id == cont?.key }
+                            if(dData) { devDesc(dData) }
+                        }
+                        def zoneData = zoneSelections(devData, cont?.key)
+                        input "${cont?.key}_zones", "enum", title: "Select your zones", description: "Tap to Select", required: true, multiple: true, options: zoneData, submitOnChange: true
+                    }
                 }
             }
-        }
-        if(settings?.sprinklers) {
             section("Preferences:") {
                 input(name: "pauseInStandby", title: "Disable Actions while in Standby?", type: "bool", defaultValue: true, multiple: false, submitOnChange: true,
                         description: "Allow your device to be disabled in SmartThings when you place your controller in Standby Mode...")
@@ -167,11 +197,31 @@ def devicePage() {
     }
 }
 
+void settingUpdate(name, value, type=null) {
+	log.trace "settingUpdate($name, $value, $type)..."
+	if(name && type) {
+		app?.updateSetting("$name", [type: "$type", value: value])
+	}
+	else if (name && type == null){ app?.updateSetting(name.toString(), value) }
+}
+
+void settingRemove(name) {
+	log.trace "settingRemove($name)..."
+	if(name) { app?.deleteSetting("$name") }
+}
+
+void appCleanup() {
+    log.trace "appCleanup()"
+    def stateItems = ["deviceId", "selectedDevice", "selectedZones", "inStandbyMode", "webhookId", "isWatering"]
+    def setItems = ["sprinklers", "selectedZones"]
+    stateItems?.each { if(state?.containsKey(it as String)) {state.remove(it)} }
+    setItems?.each { if(settings?.containsKey(it as String)) {settingRemove(it)} }
+}
+
 def devDesc(dev) {
     if(dev) {
-        // log.debug "dev: $dev"
         def str = ""
-        def zoneCnt = dev?.zones?.findAll { it?.id in settings?.selectedZones }?.size() ?: 0
+        def zoneCnt = dev?.zones?.findAll { it?.id in settings?."${dev?.id}_zones" }?.size() ?: 0
         str += "${atomicState?.installed ? "Installed" : "Installing"} Device:\n${atomicState?.modelInfo[dev?.id]?.desc}"
         str += "\n($zoneCnt) Zone(s) ${atomicState?.installed ? "are selected" :  "will be installed"}"
         paragraph "${str}", state: "complete", image: (atomicState?.modelInfo[dev?.id]?.img ?: "")
@@ -181,37 +231,23 @@ def devDesc(dev) {
 def supportPage() {
     return dynamicPage(name: "supportPage", title: "Rachio Support", install: false, uninstall: false) {
         section() {
-            href url: getSupportUrl(), style:"embedded", title:"Rachio Support (Web)", description:"", state: "complete",
-                    image: "http://rachio-media.s3.amazonaws.com/images/icons/icon-support.png"
-            href url: getCommunityUrl(), style:"embedded", title:"Rachio Community (Web)", description:"", state: "complete",
-                    image: "http://d33v4339jhl8k0.cloudfront.net/docs/assets/5355b85be4b0d020874de960/images/58333550903360645bfa6cf8/file-Er3y7doeam.png"
+            href url: getSupportUrl(), style:"embedded", title:"Rachio Support (Web)", description:"", state: "complete", image: "http://rachio-media.s3.amazonaws.com/images/icons/icon-support.png"
+            href url: getCommunityUrl(), style:"embedded", title:"Rachio Community (Web)", description:"", state: "complete", image: "http://d33v4339jhl8k0.cloudfront.net/docs/assets/5355b85be4b0d020874de960/images/58333550903360645bfa6cf8/file-Er3y7doeam.png"
         }
     }
 }
 
-def zoneSelections(devData, multiDev=false) {
+def zoneSelections(devData, devId=null) {
     //log.debug "zoneSelections: $devData"
-    def res = multiDev ? [] : [:]
+    def res = [:]
     if(!devData) { return res }
     devData?.devices.sort {it?.name}.each { dev ->
-        if(multiDev) {
-            def i = 0
-            if(dev?.id in settings?.sprinklers) {
-                def hwData = getHardwareInfo(dev?.model)
-                def zones = []
-                dev?.zones?.sort { it?.zoneNumber }.each { zon ->
-                    zones << ["key":zon?.id.toString(), "value":zon?.name?.toString()]
-                }
-                res << [title : dev?.name?.toString(), order : i, image : hwData?.img, values: zones]
-            }
-        } else {
-            if(dev?.id == settings?.sprinklers) {
-                dev?.zones?.sort {it?.zoneNumber }.each { zone ->
-                    def str = (zone?.enabled == true) ? "" : " (Disabled)"
-                    //log.debug "zoneId: $zone.id"
-                    def adni = [zone?.id].join('.')
-                    res[adni] = "${zone?.name}$str"
-                }
+        if(dev?.id == devId) {
+            dev?.zones?.sort {it?.zoneNumber }.each { zone ->
+                def str = (zone?.enabled == true) ? "" : " (Disabled)"
+                //log.debug "zoneId: $zone.id"
+                def adni = [zone?.id].join('.')
+                res[adni] = "${zone?.name}$str"
             }
         }
     }
@@ -261,36 +297,9 @@ def getDeviceInputEnum(data) {
        devices[dni] = sid?.name
        //log.info "Found sprinkler with dni(locationId.gatewayId.systemId.zoneId): $dni and displayname: ${devices[dni]}"
     }
-    //log.info "getRachioDevicesData() >> sprinklers: $devices"
+    // log.info "getRachioDevicesData() >> sprinklers: $devices"
     return devices
 }
-
-def buildDeviceMap(userData, onlySelected=false) {
-    def devMap = [:]
-    def selDevs = settings?.sprinklers
-    if(!userData || !selDevs) { return devMap }
-    userData?.devices?.each { dev ->
-        if(onlySelected && !dev?.id in selDevs) { return }
-        def zoneMap = zoneMap(dev?.zones, onlySelected)
-        def adni = [dev?.id].join('.')
-        devMap[adni] = ["name":dev?.name, "zones":zoneMap]
-    }
-    //log.debug "devMap: $devMap"
-    return devMap
-}
-
-def zoneMap(data, onlySelected=false) {
-    def zoneMap = [:]
-    if(data) {
-        data?.sort { it?.zoneNumber }.each { zn ->
-            if(onlySelected && !zn?.id in selDevs) { return }
-            def zdni = [zn?.id].join('.')
-            zoneMap[zdni] = zn?.name
-        }
-    }
-    return zoneMap
-}
-
 
 def getUserInfo(userId) {
     //log.trace "getUserInfo ${userId}"
@@ -306,15 +315,11 @@ def getUserId() {
     return null
 }
 
-void updateHwInfoMap(data, multiDev=false) {
+void updateHwInfoMap(devdata) {
     def result = [:]
-    if(data && settings?.sprinklers) {
+    if(devdata && settings?.controllers) {
         def results = null
-        if(multiDev) {
-            results = data?.findAll { it?.id in settings?.sprinklers }
-        } else {
-            results = data?.findAll { it?.id == settings?.sprinklers }
-        }
+        results = devdata?.findAll { it?.id in settings?.controllers }
         results?.each { dev ->
             result[dev?.id] = getHardwareInfo(dev?.model)
         }
@@ -323,44 +328,21 @@ void updateHwInfoMap(data, multiDev=false) {
 }
 
 def getHardwareInfo(val) {
-    def res = [:]
-    def model = null
-    def desc = null
-    def img = ""
     switch(val) {
         case "GENERATION1_8ZONE":
-            model = "8ZoneV1"
-            desc = "8-Zone (Gen 1)"
-            img = getAppImg("rachio_gen1.png")
-            break
+            return [model: "8ZoneV1", desc: "8-Zone (Gen 1)", img: getAppImg("rachio_gen1.png")]
         case "GENERATION1_16ZONE":
-            model = "16ZoneV1"
-            desc = "16-Zone (Gen 1)"
-            img = getAppImg("rachio_gen1.png")
-            break
+            return [model: "16ZoneV1", desc: "16-Zone (Gen 1)", img: getAppImg("rachio_gen1.png")]
         case "GENERATION2_8ZONE":
-            model = "8ZoneV2"
-            desc = "8-Zone (Gen 2)"
-            img = getAppImg("rachio_gen2.png")
-            break
+            return [model: "8ZoneV2", desc: "8-Zone (Gen 2)", img: getAppImg("rachio_gen2.png")]
         case "GENERATION2_16ZONE":
-            model = "16ZoneV2"
-            desc = "16-Zone (Gen 2)"
-            img = getAppImg("rachio_gen2.png")
-            break
+            return [model: "16ZoneV2", desc: "16-Zone (Gen 2)", img: getAppImg("rachio_gen2.png")]
         case "GENERATION3_8ZONE":
-            model = "8ZoneV3"
-            desc = "8-Zone (Gen 3)"
-            img = getAppImg("rachio_gen3.png")
-            break
+            return [model: "8ZoneV3", desc: "8-Zone (Gen 3)", img: getAppImg("rachio_gen3.png")]
         case "GENERATION3_16ZONE":
-            model = "16ZoneV3"
-            desc = "16-Zone (Gen 3)"
-            img = getAppImg("rachio_gen3.png")
-            break
+            return [model: "16ZoneV3", desc: "16-Zone (Gen 3)", img: getAppImg("rachio_gen3.png")]
     }
-    res = ["desc":desc, "model":model, "img":img]
-    return res
+    return [desc: null, model: null, img: ""]
 }
 
 def getAppImg(imgName)	{ return "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/$imgName" }
@@ -424,19 +406,25 @@ def initialize() {
     log.trace "initialized..."
     unschedule()
     scheduler()
-    //Creates the selectedDevice and selectedZones maps in state
+    //Creates the selectedDevices maps in state
     updateDevZoneStates()
 
     addRemoveDevices()
 
-    if(initWebhook()) { }
-    poll()
+    initWebhooks()
     //send activity feeds to tell that device is connected
     def notificationMessage = "is connected to SmartThings"
     sendActivityFeeds(notificationMessage)
     atomicState.timeSendPush = null
 
     subscribe(app, onAppTouch)
+    
+    runIn(5, "postInit", [overwrite: true])
+}
+
+void postInit() {
+    appCleanup()
+    poll()
 }
 
 def uninstalled() {
@@ -444,7 +432,7 @@ def uninstalled() {
     unschedule()
 
     //Remove any existing webhooks before uninstall...
-    removeWebhooks()
+    removeAllWebhooks()
 
     if(addRemoveDevices(true)) {
         //Revokes Smartthings endpoint token...
@@ -457,10 +445,11 @@ def uninstalled() {
 }
 
 def onAppTouch(event) {
-    poll()
+    updated()
 }
 
 def scheduler() {
+    runEvery1Minute("heartbeat")
     runEvery15Minutes("heartbeat")
     //runEvery30Minutes("heartbeat")
 }
@@ -470,46 +459,68 @@ def heartbeat() {
     poll()
 }
 
+void initWebhooks() {
+    settings?.controllers?.each { c->
+        if(c) { 
+            initWebhook(c)
+            // log.debug "webhooks($c): ${getWebhookIdsForDev(c)}"
+        }
+    }
+}
+
 //Subscribes to the selected controllers API events that will be used to trigger a poll
-def initWebhook() {
+def initWebhook(controlId) {
     //log.trace "initWebhook..."
     def result = false
-    def whId = atomicState?.webhookId
-    def cmdType = whId == null ? "post" : "put"
+    def whId = atomicState?.webhookIds ?: [:]
+    def cmdType = whId[controlId] == null ? "post" : "put"
     def apiWebhookUrl = "${rootApiUrl()}/notification/webhook"
     def endpointUrl = apiServerUrl("/api/token/${atomicState?.accessToken}/smartapps/installations/${app.id}/rachioReceiver")
     def bodyData
-    if(!whId) { bodyData = ["device":["id":settings?.sprinklers], "externalId":app.id, "url": endpointUrl, "eventTypes":webhookEvtTypes()] }
-    else { bodyData = ["id":whId, "externalId":app.id, "url": endpointUrl, "eventTypes":webhookEvtTypes()] }
-    def jsonData = new JsonOutput().toJson(bodyData)
-    if(webhookHttp(apiWebhookUrl, jsonData, cmdType)) {
-        log.info "${cmdType == "post" ? "Created" : "Updated"} device api webhook subscription successfully!!!"
-        result = true
+    if(!whId[controlId]) { 
+        bodyData = new JsonOutput().toJson([device:[id: controlId], externalId: app.id, url: endpointUrl, eventTypes: webhookEvtTypes()])
+    } else { 
+        bodyData = new JsonOutput().toJson([id: whId[controlId], externalId: app.id, url: endpointUrl, eventTypes: webhookEvtTypes()])
+    }
+    try {
+        if(webhookHttp(apiWebhookUrl, bodyData, cmdType, controlId)) {
+            log.info "Successfully ${cmdType == "post" ? "Created" : "Updated"} API Webhook Subscription for Controller (${controlId})!!!"
+            result = true
+        }
+    } catch(ex) {
+        log.error "initWebhook Exception: ${ex.message} | Data sent: ${bodyData}"
     }
     return result
 }
 
 //This isn't used for anything other than to return the webhooks for the device
-def getWebhooks(devId) {
+def getWebhookIdsForDev(devId) {
+    if(!devId) { return null }
     def data = _httpGet("notification/${devId}/webhook")
     def res = null
-    if(data) {
-        data?.each { wh ->
-            if(wh?.externalId == app?.id) {
-                res = wh
-            }
-        }
-    }
+    if(data) { res = data?.findAll { it?.externalId == app?.id }?.collect { it?.id } }
     return res
 }
 
+void removeWebhookByDevId(devId) {
+    def webhookIds = atomicState?.webhookIds
+    if(webhookIds && webhookIds[devId] != null) {
+        if(webhookHttp("${rootApiUrl()}/notification/webhook/${webhookIds[devId]}", "", "delete")) {
+            log.warn "Removed API Webhook Subscription for (${webhookIds[devId]})"
+        }
+    }
+}
+
 //Removes the webhook subscription for the device.
-void removeWebhooks() {
-    def webhookId = atomicState?.webhookId
-    if(webhookId) {
-        if(webhookHttp("${rootApiUrl()}/notification/webhook/${webhookId}", "", "delete")) {
-            log.warn "Removed API Webhook Subscription for (${settings?.sprinklers})"
-            atomicState?.webhookId = null
+void removeAllWebhooks() {
+    def webhookIds = atomicState?.webhookIds
+    if(settings?.controllers && webhookIds) {
+        settings?.controllers?.each { c->
+            if(c) {
+                if(webhookHttp("${rootApiUrl()}/notification/webhook/${webhookIds[c]}", "", "delete")) {
+                    log.warn "Removed API Webhook Subscription for (${webhookIds[c]})"
+                }
+            }
         }
     }
 }
@@ -526,7 +537,7 @@ def webhookEvtTypes() {
 }
 
 //Handles the http requests for the webhook methods
-def webhookHttp(url, jsonBody, type=null) {
+def webhookHttp(url, jsonBody, type=null, ctrlId) {
     //log.trace "webhookHttp($url, $jsonBody, $type)"
     def returnStatus = false
     def response = null
@@ -556,10 +567,13 @@ def webhookHttp(url, jsonBody, type=null) {
             if(response?.status in [200, 201, 204]) {
                 returnStatus = true
                 if(type in ["put", "post"]) {
-                    def whId = response?.data?.id
-                    atomicState?.webhookId = whId
+                    def whIds = atomicState?.webhookIds ?: [:]
+                    whIds[ctrlId] = response?.data?.id
+                    atomicState?.webhookIds = whIds
                 } else if(type == "delete") {
-                    atomicState?.webhookId = null
+                    def whIds = atomicState?.webhookIds ?: [:]
+                    whIds?.remove(ctrlId)
+                    atomicState?.webhookIds = whIds
                 }
             } else {
                 //refresh the auth token
@@ -577,22 +591,12 @@ def webhookHttp(url, jsonBody, type=null) {
     return returnStatus
 }
 
-// This is the endpoint the webhook sends the events to...
-def rachioReceiveHandler() {
-    def reqData = request.JSON
-    if(reqData?.size() || reqData == [:]) {
-        //log.trace "eventDatas: ${reqData?.eventDatas}"
-        log.trace "Rachio Device Event Received - Requesting New Data from API"
-        poll()
-    }
-}
-
 def getDeviceIds() {
-    return settings?.sprinklers ?: null
+    return settings?.controllers ?: null
 }
 
-def getZoneIds() {
-    return settings?.selectedZones ?: null
+def getZoneIds(devId) {
+    return settings?."${devId}_zones" ?: null
 }
 
 def getZoneData(userId, zoneId) {
@@ -601,22 +605,22 @@ def getZoneData(userId, zoneId) {
 
 void updateDevZoneStates() {
     def devMap = [:]
-    def zoneMap = [:]
     def userInfo = getUserInfo(atomicState?.userId)
     userInfo?.devices?.each { dev ->
-        if(dev?.id == settings?.sprinklers) {
-            def adni = [dev?.id].join('.')
+        if(dev?.id in settings?.controllers) {
+            devMap[dev?.id] = [:]
+            devMap[dev?.id]["name"] = dev?.name
+            def zoneMap = [:]
             dev?.zones?.each { zone ->
-               if(zone?.id in settings?.selectedZones) {
-                    def zdni = [zone?.id].join('.')
-                    zoneMap[zdni] = zone?.name
+               if(zone?.id in settings?."${dev?.id}_zones") {
+                    zoneMap[zone?.id] = [:]
+                    zoneMap[zone?.id] = zone?.name
                 }
             }
-            devMap[adni] = dev?.name
+            devMap[dev?.id]["zones"] = zoneMap
         }
     }
-    atomicState?.selectedDevice = devMap
-    atomicState?.selectedZones = zoneMap
+    atomicState?.selectedDevices = devMap
 }
 
 def getDeviceInfo(devId) {
@@ -636,54 +640,85 @@ def getDeviceData(devId) {
 
 def rootApiUrl() { return "https://api.rach.io/1/public" }
 
+def cleanupObjects(id){
+    if(settings?."${id}_zones") {
+        settingRemove("${id}_zones")
+    }
+    def whIds = atomicState?.webhookIds
+    if(whIds && whIds[id]) {
+        removeWebhookByDevId(id)
+    }
+    removeWateringItem(id)
+    removeStandbyItem(id)
+    atomicState?.inStandbyModeMap = standByMap
+}
+
+def removeWateringItem(id) {
+    def i = atomicState?.isWateringMap ?: [:]
+    if(id && i && i[id]) { i?.remove(id) }
+    atomicState?.isWateringMap = i
+}
+
+def removeStandbyItem(id) {
+    def i = atomicState?.inStandbyModeMap ?: [:]
+    if(id && i && i[id]) { i?.remove(id) }
+    atomicState?.inStandbyModeMap = i
+}
+
+def updateWateringItem(id, val) {
+    def i = atomicState?.isWateringMap ?: [:]
+    if(id && i) { i[id] = val }
+    atomicState?.isWateringMap = i
+}
+
+def updateStandbyItem(id, val) {
+    def i = atomicState?.inStandbyModeMap ?: [:]
+    if(id && i) { i[id] = val }
+    atomicState?.inStandbyModeMap = i
+}
+
 def addRemoveDevices(uninst=false) {
     //log.trace "addRemoveDevices($uninst)..."
     try {
         def delete = []
         if(uninst == false) {
             def devsInUse = []
-            //sprinklers is selected by user on DeviceList page
-            def controller = atomicState?.selectedDevice?.collect { dni ->
+            def selectedDevices = atomicState?.selectedDevices
+            selectedDevices?.each { contDev ->
                 //Check if the discovered sprinklers are already initiated with corresponding device types.
-                def d = getChildDevice(dni?.key)
+                def d = getChildDevice(contDev?.key)
                 if(!d) {
-                    removeWebhooks()
-                    d = addChildDevice("tonesto7", getChildContName(), dni?.key, null, [label: getDeviceLabelStr(dni?.value)])
+                    d = addChildDevice("tonesto7", getChildContName(), contDev?.key, null, [label: getDeviceLabelStr(contDev?.value?.name)])
                     d.completedSetup = true
-                    d.take()
-                    log.info "Controller Device Created: (${d?.displayName}) with id: [${dni?.key}]"
+                    log.info "Controller Device Created: (${d?.displayName}) with id: [${contDev?.key}]"
                 } else {
                     //log.debug "found ${d?.displayName} with dni: ${dni?.key} already exists"
                 }
-                devsInUse += dni.key
-                return d
-            }
-
-            def zoneDevices = atomicState?.selectedZones?.collect { dni ->
-                //Check if the discovered sprinklers are already initiated with corresponding device types.
-                def d2 = getChildDevice(dni?.key)
-                if(!d2) {
-                    d2 = addChildDevice("tonesto7", getChildZoneName(), dni?.key, null, [label: getDeviceLabelStr(dni?.value)])
-                    d2.completedSetup = true
-                    d2.take()
-                    log.info "Zone Device Created: (${d2?.displayName}) with id: [${dni?.key}]"
-                } else {
-                    //log.debug "found ${d2?.displayName} with dni: ${dni?.key} already exists"
+                devsInUse += contDev.key
+                contDev?.value?.zones?.each { zoneDni ->
+                    //Check if the discovered sprinklers are already initiated with corresponding device types.
+                    def d2 = getChildDevice(zoneDni?.key)
+                    if(!d2) {
+                        d2 = addChildDevice("tonesto7", getChildZoneName(), zoneDni?.key, null, [label: getDeviceLabelStr(zoneDni?.value)])
+                        d2.completedSetup = true
+                        log.info "Zone Device Created: (${d2?.displayName}) with id: [${zoneDni?.key}]"
+                    } else {
+                        //log.debug "found ${d2?.displayName} with dni: ${zoneDni?.key} already exists"
+                    }
+                    devsInUse += zoneDni?.key
                 }
-                devsInUse += dni.key
-                return d2
             }
             //log.debug "devicesInUse: ${devsInUse}"
-            delete = app.getChildDevices(true).findAll { !devsInUse?.toString()?.contains(it?.deviceNetworkId) }
+            delete = app.getChildDevices(true).findAll { !(it?.deviceNetworkId in devsInUse) }
         } else {
-            atomicState?.selectedDevice = []
-            atomicState?.selectedZoneMap = []
+            atomicState?.selectedDevices = []
             delete = app.getChildDevices(true)
         }
         if(delete?.size() > 0) {
             log.warn "Device Delete: ${delete} | Removing (${delete?.size()}) Devices..."
-            delete.each {
-                deleteChildDevice(it.deviceNetworkId)
+            delete?.each {
+                cleanupObjects(it?.deviceNetworkId)
+                deleteChildDevice(it?.deviceNetworkId)
                 log.warn "Deleted the Device: ${it?.displayName}"
             }
         }
@@ -711,101 +746,137 @@ def getTimeSinceInSeconds(time) {
     return (int) (now() - time)/1000
 }
 
+// This is the endpoint the webhook sends the events to...
+def rachioReceiveHandler() {
+    def reqData = request.JSON
+    if(reqData?.size() || reqData == [:]) {
+        // log.trace "eventDatas: ${reqData?.summary}"
+        log.trace "Rachio Device Event | Summary: (${reqData?.summary}) | Requesting Latest Data from API | DeviceID: ${reqData?.deviceId}"
+        if(reqData?.deviceId) {
+            def dev = getChildDevice(reqData?.deviceId)
+            poll(dev, "api")
+        } else { poll() }
+    }
+}
+
 //Section4: polling device info methods
-void poll(child=null) {
+void poll(child=null, type=null) {
     def lastPollSec = getTimeSinceInSeconds(atomicState?.lastPollDt)
-    log.info "${child ? "[${child.device?.label}] is requesting the parent poll for new data!!!" : "${app.label} -- Polling API for New Data -- Last Update was ($lastPollSec seconds ago)"}"
-    if(atomicState?.inStandbyMode == null) { atomicState?.inStandbyMode = false }
+    if(child && !type) { type = "device" }
+    log.info "${app.label} -- Polling API for Latest Data -- Last Update was ($lastPollSec seconds ago)${type ? " | Reason: [$type]" : ""}"
+            
+    def standByMap = atomicState?.inStandbyModeMap ?: [:]
+    def wateringMap = atomicState?.isWateringMap ?: [:]
     if(lastPollSec < 2) {
         runIn(3, "poll", [overwrite: true])
         //log.warn "Delaying poll... It's too soon to request new data"
         return
     }
-    def devData = getDeviceData(atomicState?.deviceId)
-    // log.debug devData
-    def devices = app.getChildDevices(true)
-    log.info "Updating (${devices?.size()}) child devices..."
-    devices?.each { dev ->
-        pollChild(dev, devData)
+    def selectedDevices = atomicState?.selectedDevices
+    def ctrlCnt = 0
+    def zoneCnt = 0
+    selectedDevices?.each { cont->
+        def devData = getDeviceData(cont?.key)
+        def cDev = getChildDevice(cont?.key)
+        if(standByMap[cont?.key] == null) { standByMap[cont?.key] = false }
+        if(wateringMap[cont?.key] == null) { wateringMap[cont?.key] = false }
+        if(cDev) {
+            ctrlCnt = ctrlCnt+1
+            pollChild(cDev, devData)
+            
+            cont?.value?.zones?.each { zone->
+                zoneCnt = zoneCnt+1
+                def zDev = getChildDevice(zone?.key)
+                if(zDev) { pollChild(zDev, devData) }
+            }
+            
+        }
     }
+    log.info "Updating (${ctrlCnt}) Controllers and (${zoneCnt}) Zone devices..."
+    atomicState?.inStandbyModeMap = standByMap
+    atomicState?.isWateringMap = wateringMap
     atomicState?.lastPollDt = now()
 }
 
-//this method is called by (child) device type, to reply (Map) rachioData to the corresponding child
 def pollChild(child, devData) {
-    //poll data from 3rd party cloud
     if (pollChildren(child, devData)){
         //generate event for each (child) device type identified by different dni
     }
 }
 
-def pollChildren(child, devData) {
+def pollChildren(childDev, devData) {
     //log.trace "updating child device (${child?.label})" // | ${child?.device?.deviceNetworkId})"
     try {
-        if(child && devData) {
-            def dni = child?.device?.deviceNetworkId
-            def d = child
-            def devLabel = d?.label?.toString()
+        if(childDev && devData) {
+            def dni = childDev?.device?.deviceNetworkId
+            String devLabel = childDev?.label
             def schedData = devData.currentSchedule
             def devStatus = devData
             def rainDelay = getCurrentRainDelay(devStatus)
             def status = devStatus?.status
+            def onlStatus = status?.toString()?.toLowerCase() == "online" ? "online" : "offline"
+            if (!childDev?.getDataValue("HealthEnrolled")) {
+				childDev.updated()
+			}
             def pauseInStandby = settings?.pauseInStandby == false ? false : true
             def inStandby = devData?.on.toString() != "true" ? true : false
-            atomicState?.inStandbyMode = inStandby
             def data = []
-            atomicState?.selectedDevice.each { dev ->
-                if (dni == dev?.key) {
-                    if(atomicState?.isWatering == true && schedData?.status != "PROCESSING") { handleWateringSched(false) }
+            Map selectedDevices = atomicState?.selectedDevices ?: [:]
+            selectedDevices?.each { contDev ->
+                if (dni == contDev?.key) {
+                    def standByMap = atomicState?.inStandbyModeMap ?: [:]
+                    standByMap[dni] = inStandby
+                    atomicState?.inStandbyModeMap = standByMap
+                    def wateringMap = atomicState?.isWateringMap ?: [:]
+                    if(wateringMap && wateringMap[contDev?.key] == true && schedData?.status != "PROCESSING") { handleWateringSched(contDev?.key, false) }
                     def newLabel = getDeviceLabelStr(devData?.name).toString()
                     if(devLabel != newLabel) {
-                        d?.label = newLabel
-                        log.info "Device's Label has changed from (${devLabel}) to [${newLabel}]"
+                        childDev?.label = newLabel
+                        log.info "Controller Label has changed from (${devLabel}) to [${newLabel}]"
                     }
-                    data = ["data":devData, "schedData":schedData, "rainDelay":rainDelay, "status": status, "standby":inStandby, "pauseInStandby":pauseInStandby]
+                    data = [data: devData, schedData: schedData, rainDelay: rainDelay, status: status, standby: inStandby, pauseInStandby: pauseInStandby]
+                } else {
+                    contDev?.value?.zones?.each { zone ->
+                        if (dni == zone?.key) {
+                            def zoneData = findZoneData(zone?.key, devData)
+                            def newLabel = getDeviceLabelStr(zone?.value).toString()
+                            if(devLabel != newLabel) {
+                                childDev?.label = newLabel
+                                log.info "Zone Label has changed from (${devLabel}) to [${newLabel}]"
+                            }
+                            data = [data: zoneData, schedData: schedData, devId: contDev?.key, status: status, standby: inStandby, pauseInStandby: pauseInStandby]
+                        }
+                    }
                 }
             }
-
-            atomicState?.selectedZones.each { zone ->
-                if (dni == zone?.key) {
-                    def zoneData = findZoneData(dni, devData)
-                    def newLabel = getDeviceLabelStr(zoneData?.name).toString()
-                    if(devLabel != newLabel) {
-                        d?.label = getDeviceLabelStr(zoneData?.name)
-                        log.info "Device's Label has changed from (${devLabel}) to [${newLabel}]"
-                    }
-                    data = ["data":zoneData, "schedData":schedData, "devId":atomicState?.deviceId, "status": status, "standby":inStandby, "pauseInStandby":pauseInStandby]
-                }
-            }
-            if (d && data != []) {
-                d.generateEvent(data)
+            if (childDev && data != []) {
+                childDev?.generateEvent(data)
+                childDev?.sendEvent(name: "DeviceWatch-DeviceStatus", value: onlStatus, displayed: false)
             }
         } else { log.warn "pollChildren cannot update children because it is missing the required parameters..." }
     } catch(Exception ex) {
-        log.error "exception polling children: ${ex}"
+        log.error "exception polling children:", ex
         //refreshAuthToken()
     }
     return result
 }
 
-def findZoneData(id, devData) {
-    if(!id || !devData) { return null }
+def findZoneData(devId, devData) {
+    if(!devId || !devData) { return null }
     if(devData?.zones) {
         //log.debug "devData: ${devData?.zones}"
-        def res = devData?.zones.find { it?.id == id }
-        //log.debug "res: $res"
-        return res
+        return devData?.zones.find { it?.id == devId }
     }
     return null
 }
 
-def setValue(child, newValue) {
+def setValue(child, deviceId, newValue) {
     def jsonRequestBody = '{"value":'+ newValue+'}'
-    def result = sendJson(child, jsonRequestBody)
+    def result = sendJson(child, jsonRequestBody, deviceId)
     return result
 }
 
-def sendJson(subUri, jsonBody, standbyCmd=false) {
+def sendJson(subUri, jsonBody, deviceId, standbyCmd=false) {
     //log.trace "Sending: ${jsonBody}"
     def returnStatus = false
     def cmdParams = [
@@ -815,7 +886,7 @@ def sendJson(subUri, jsonBody, standbyCmd=false) {
     ]
 
     try{
-        if(!standbyCmd && settings?.pauseInStandby == true && atomicState?.inStandbyMode == true) {
+        if(!standbyCmd && settings?.pauseInStandby == true && deviceId && atomicState?.inStandbyModeMap[deviceId] == true) {
             log.debug "Skipping this command while controller is in 'Standby Mode'..."
             return true
         }
@@ -932,9 +1003,9 @@ def standbyOn(child, deviceId) {
     log.debug "standbyOn() command received from ${child?.device?.displayName}"
     if(deviceId) {
         def jsonData = new JsonBuilder("id":deviceId)
-        def res = sendJson("device/off", jsonData.toString(), true)
+        def res = sendJson("device/off", jsonData.toString(), deviceId, true)
         // poll()
-        child?.log("${child?.device.displayName} Standby OFF (Result: $res)")
+        // child?.log("${child?.device.displayName} Standby OFF (Result: $res)")
         return res
     }
 }
@@ -943,9 +1014,9 @@ def standbyOff(child, deviceId) {
     log.debug "standbyOff() command received from ${child?.device?.displayName}"
     if(deviceId) {
         def jsonData = new JsonBuilder("id":deviceId)
-        def res = sendJson("device/on", jsonData.toString(), true)
-        // poll()
-        child?.log("${child?.device.displayName} Standby OFF (Result: $res)")
+        def res = sendJson("device/on", jsonData.toString(), deviceId, true)
+        // // poll()
+        // child?.log("${child?.device.displayName} Standby OFF (Result: $res)")
         return res
     }
 }
@@ -956,22 +1027,22 @@ def on(child, deviceId) {
 
 def off(child, deviceId) {
     log.trace "Received off() command from (${child?.device?.displayName})..."
-    child?.log("Stop Watering - Received from (${child?.device.displayName})")
+    // child?.log("Stop Watering - Received from (${child?.device.displayName})")
     if(deviceId) {
         def jsonData = new JsonBuilder("id":deviceId)
-        def res = sendJson("device/stop_water", jsonData.toString())
+        def res = sendJson("device/stop_water", jsonData.toString(), deviceId)
         // poll()
         return res
     }
     return false
 }
 
-def setRainDelay(child, delayVal) {
+def setRainDelay(child, deviceId, delayVal) {
     if (delayVal) {
         def secondsPerDay = 24*60*60;
         def duration = delayVal * secondsPerDay;
         def jsonData = new JsonBuilder("id":child?.device?.deviceNetworkId, "duration":duration)
-        def res = sendJson("device/rain_delay", jsonData?.toString())
+        def res = sendJson("device/rain_delay", jsonData?.toString(), deviceId)
 
         if (res) { child?.sendEvent(name: 'rainDelay', value: delayVal) }
         return res
@@ -986,7 +1057,8 @@ def isWatering(devId) {
     return result
 }
 
-void handleWateringSched(val=false) {
+void handleWateringSched(deviceId, val=false) {
+    log.debug "handleWateringSched($val)"
     if(val == true) {
         log.trace "Watering is Active... Scheduling poll for every 1 minute"
         runEvery1Minute("poll")
@@ -995,11 +1067,18 @@ void handleWateringSched(val=false) {
         unschedule("poll")
         runIn(60, "poll") // This is here just to make sure that the schedule actually stopped and that the data is really current.
     }
-    atomicState?.isWatering = val
+    def isWateringMap = atomicState?.isWateringMap ?: [:]
+    isWateringMap[deviceId] = val
+    atomicState?.isWateringMap = isWateringMap
 }
 
 def getDeviceStatus(devId) {
     return _httpGet("device/${devId}")
+}
+
+def getControlLblById(id) {
+    def dev = getChildDevice(id)
+    return dev ? dev?.displayName : null
 }
 
 def getCurrentRainDelay(res) {
@@ -1010,36 +1089,38 @@ def getCurrentRainDelay(res) {
     return value
 }
 
-def startZone(child, zoneNum, mins) {
+def startZone(child, deviceId, zoneNum, mins) {
     def res = false
-    log.trace "Starting to water on (ZoneName: ${child?.device.displayName} | ZoneNumber: ${zoneNum} | RunDuration: ${mins}).."
+    def ctrlLbl = getControlLblById(deviceId)
+    log.trace "Starting to Water on ${ctrlLbl ? "$ctrlLbl: " : ""}(ZoneName: ${child?.device.displayName} | ZoneNumber: ${zoneNum} | RunDuration: ${mins})"
     //child?.log("Starting to water on (ZoneName: ${child?.device.displayName} | ZoneNumber: ${zoneNum} | RunDuration: ${mins})...")
     def zoneId = child?.device?.deviceNetworkId
     if (zoneId && zoneNum && mins) {
         def duration = mins.toInteger() * 60
         def jsonData = new JsonBuilder("id":zoneId, "duration":duration)
         //log.debug "startZone jsonData: ${jsonData}"
-        res = sendJson("zone/start", jsonData?.toString())
+        res = sendJson("zone/start", jsonData?.toString(), deviceId)
     } else { log.error "startZone Missing ZoneId or duration... ${zoneId} | ${mins}" }
     return res
 }
 
-def runAllZones(child, mins) {
+def runAllZones(child, deviceId, mins) {
     def res = false
     log.trace "runAllZones(ZoneName: ${child?.device?.displayName}, Duration: ${mins})..."
     //child?.log("runAllZones(ZoneName: ${child?.device?.displayName} | Duration: ${mins})")
-    if (atomicState?.selectedZones && mins) {
+    def selectedDevices = atomicState?.selectedDevices ?: [:]
+    if (deviceId && selectedDevices[deviceId] && selectedDevices[deviceId]?.zones && mins) {
         def zoneData = []
         def sortNum = 1
         def duration = mins.toInteger() * 60
-        atomicState?.selectedZones?.each { z ->
+        selectedDevices[deviceId]?.zones?.each { z ->
             zoneData << ["id":z?.key, "duration":duration, "sortOrder": sortNum]
             sortNum = sortNum+1
         }
         def jsonData = new JsonBuilder("zones":zoneData)
         //child?.log("runAllZones  jsonData: ${jsonData}")
-        res = sendJson("zone/start_multiple", jsonData?.toString())
-    } else { log.error "runAllZones Missing ZoneIds or Duration... ${atomicState?.selectedZones} | ${mins}" }
+        res = sendJson("zone/start_multiple", jsonData?.toString(), deviceId)
+    } else { log.error "runAllZones Missing ZoneIds or Duration... ${selectedDevices[deviceId]?.zones} | ${mins}" }
     return res
 }
 
@@ -1074,20 +1155,22 @@ def getScheduleRuleInfo(schedId) {
     return res
 }
 
-def restoreZoneSched(runData) {
-    def res = false
-    log.trace "restoreZoneSched( Data: ${runData})..."
-    //child?.log("restoreZoneSched( Data: ${runData})...")
-    if (atomicState?.selectedZones && mins) {
-        def zoneData = []
-        def sortNum = 1
-        runData?.each { rd ->
-            zoneData << ["id":rd?.zoneId, "duration": rd?.duration, "sortOrder": rd?.sortNumber]
-        }
-        def jsonData = new JsonBuilder("zones":zoneData)
-        child?.log("restoreZoneSched jsonData: ${jsonData}")
-        sendJson("zone/start_multiple", jsonData?.toString())
-        res = true
-    }
-    return res
-}
+// def restoreZoneSched(runData) {
+//     def res = false
+//     log.trace "restoreZoneSched( Data: ${runData})..."
+//     //child?.log("restoreZoneSched( Data: ${runData})...")
+//     def selectedDevices = atomicState?.selectedDevices ?: [:]
+//     if (controlId && selectedDevices[controlId] && selectedDevices[controlId]?.zones && mins) {
+//     if (atomicState?.selectedZones && mins) {
+//         def zoneData = []
+//         def sortNum = 1
+//         runData?.each { rd ->
+//             zoneData << ["id":rd?.zoneId, "duration": rd?.duration, "sortOrder": rd?.sortNumber]
+//         }
+//         def jsonData = new JsonBuilder("zones":zoneData)
+//         child?.log("restoreZoneSched jsonData: ${jsonData}")
+//         sendJson("zone/start_multiple", jsonData?.toString())
+//         res = true
+//     }
+//     return res
+// }
