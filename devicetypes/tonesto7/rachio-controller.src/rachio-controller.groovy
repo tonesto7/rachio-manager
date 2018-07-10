@@ -176,13 +176,9 @@ def initialize() {
 
 def verifyDataAttr() {
     updateDataValue("HealthEnrolled", "true")
-    if(!device?.getDataValue("manufacturer")) {
-        updateDataValue("manufacturer", "Rachio")
-    }
-    def gen = device?.currentState("hardwareModel")?.value
-    if(!device?.getDataValue("model") || device?.getDataValue("model") != "${device?.name}${gen ? " ($gen)" : ""}") {
-        updateDataValue("model", "${device?.name}${gen ? " ($gen)" : ""}")
-    }
+    updateDataValue("manufacturer", "Rachio")
+    def gen = state?.deviceId ? parent?.getDevGeneration(state?.deviceId) : null
+    updateDataValue("model", "${device?.name}${gen ? " ($gen)" : ""}")
 }
 
 void installed() {

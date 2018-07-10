@@ -327,22 +327,29 @@ void updateHwInfoMap(devdata) {
     atomicState?.modelInfo = result
 }
 
+def getDevGeneration(devId) {
+    if(devId && atomicState?.modelInfo[devId] && atomicState?.modelInfo[devId]?.gen) {
+        return atomicState?.modelInfo[devId]?.gen
+    } 
+    return null
+}
+
 def getHardwareInfo(val) {
     switch(val) {
         case "GENERATION1_8ZONE":
-            return [model: "8ZoneV1", desc: "8-Zone (Gen 1)", img: getAppImg("rachio_gen1.png")]
+            return [model: "8ZoneV1", desc: "8-Zone (Gen 1)", img: getAppImg("rachio_gen1.png"), gen: "Gen1"]
         case "GENERATION1_16ZONE":
-            return [model: "16ZoneV1", desc: "16-Zone (Gen 1)", img: getAppImg("rachio_gen1.png")]
+            return [model: "16ZoneV1", desc: "16-Zone (Gen 1)", img: getAppImg("rachio_gen1.png"), gen: "Gen1"]
         case "GENERATION2_8ZONE":
-            return [model: "8ZoneV2", desc: "8-Zone (Gen 2)", img: getAppImg("rachio_gen2.png")]
+            return [model: "8ZoneV2", desc: "8-Zone (Gen 2)", img: getAppImg("rachio_gen2.png"), gen: "Gen2"]
         case "GENERATION2_16ZONE":
-            return [model: "16ZoneV2", desc: "16-Zone (Gen 2)", img: getAppImg("rachio_gen2.png")]
+            return [model: "16ZoneV2", desc: "16-Zone (Gen 2)", img: getAppImg("rachio_gen2.png"), gen: "Gen2"]
         case "GENERATION3_8ZONE":
-            return [model: "8ZoneV3", desc: "8-Zone (Gen 3)", img: getAppImg("rachio_gen3.png")]
+            return [model: "8ZoneV3", desc: "8-Zone (Gen 3)", img: getAppImg("rachio_gen3.png"), gen: "Gen3"]
         case "GENERATION3_16ZONE":
-            return [model: "16ZoneV3", desc: "16-Zone (Gen 3)", img: getAppImg("rachio_gen3.png")]
+            return [model: "16ZoneV3", desc: "16-Zone (Gen 3)", img: getAppImg("rachio_gen3.png"), gen: "Gen3"]
     }
-    return [desc: null, model: null, img: ""]
+    return [desc: null, model: null, img: "", gen: null]
 }
 
 def getAppImg(imgName)	{ return "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/$imgName" }
