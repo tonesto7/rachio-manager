@@ -23,7 +23,7 @@
             "iconUrl": "https://s3-us-west-2.amazonaws.com/rachio-media/smartthings/Rachio-logo-300px.png",
             "published": true,
             "oAuth": true,
-            "version": "1.1.0",
+            "version": "1.1.1",
             "appSettings": {},
             "appUrl": "smartapps/tonesto7/rachio-manager.src/rachio-manager.groovy"
         },
@@ -33,7 +33,7 @@
             "name": "Rachio Controller",
             "iconUrl": "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/rachio_gen2.png",
             "published": true,
-            "version": "1.1.0",
+            "version": "1.1.1",
             "appUrl": "deviceTypes/tonesto7/rachio-controller.src/rachio-controller.groovy",
             "optional": false
         },
@@ -41,7 +41,7 @@
             "name": "Rachio Zone",
             "iconUrl": "https://raw.githubusercontent.com/tonesto7/rachio-manager/master/images/rachio_gen2.png",
             "published": true,
-            "version": "1.1.0",
+            "version": "1.1.1",
             "appUrl": "deviceTypes/tonesto7/rachio-zone.src/rachio-zone.groovy",
             "optional": false
         }

@@ -13,7 +13,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Modified: 07-05-2018
+ *	Modified: 07-11-2018
  */
 
 import groovy.json.*
@@ -45,7 +45,7 @@ mappings {
     path("/rachioReceiver") { action: [ POST: "rachioReceiveHandler" ] }
 }
 
-def appVer() { return "1.1.0" }
+String appVer() { return "1.1.1" }
 
 def appInfoSect()	{
     section() {
@@ -170,7 +170,7 @@ def devicePage() {
         }
         if(settings?.controllers) {
             updateHwInfoMap(devData?.devices)
-            devices?.sort { it?.key }?.each { cont->
+            devices?.sort { it?.value }?.each { cont->
                 if(cont?.key in settings?.controllers) {
                     section("${cont?.value} Zones:"){
                         if(settings?."${cont?.key}_zones") {
@@ -212,7 +212,7 @@ void settingRemove(name) {
 
 void appCleanup() {
     log.trace "appCleanup()"
-    def stateItems = ["deviceId", "selectedDevice", "selectedZones", "inStandbyMode", "webhookId", "isWatering"]
+    def stateItems = ["deviceId", "selectedDevice", "selectedZones", "inStandbyMode", "webhookId", "isWateringMap", "inStandbyModeMap"]
     def setItems = ["sprinklers", "selectedZones"]
     stateItems?.each { if(state?.containsKey(it as String)) {state.remove(it)} }
     setItems?.each { if(settings?.containsKey(it as String)) {settingRemove(it)} }
@@ -413,34 +413,29 @@ def initialize() {
     log.trace "initialized..."
     unschedule()
     scheduler()
-    //Creates the selectedDevices maps in state
-    updateDevZoneStates()
-
-    addRemoveDevices()
-
-    initWebhooks()
-    //send activity feeds to tell that device is connected
-    def notificationMessage = "is connected to SmartThings"
-    sendActivityFeeds(notificationMessage)
-    atomicState.timeSendPush = null
-
     subscribe(app, onAppTouch)
-    
-    runIn(5, "postInit", [overwrite: true])
+    updateDevZoneStates() //Creates the selectedDevices maps in state
+    runIn(2, "initStep2", [overwrite: true])
+    sendActivityFeeds("is connected to SmartThings")
+    atomicState.timeSendPush = null
 }
 
-void postInit() {
+void initStep2() {
+    addRemoveDevices()
     appCleanup()
+    runIn(3, "initStep3", [overwrite: true])
+}
+
+void initStep3() {
+    initWebhooks()
     poll()
 }
 
 def uninstalled() {
     log.trace "uninstalled() called... removing smartapp and devices"
     unschedule()
-
     //Remove any existing webhooks before uninstall...
     removeAllWebhooks()
-
     if(addRemoveDevices(true)) {
         //Revokes Smartthings endpoint token...
         revokeAccessToken()
@@ -648,39 +643,37 @@ def getDeviceData(devId) {
 def rootApiUrl() { return "https://api.rach.io/1/public" }
 
 def cleanupObjects(id){
-    if(settings?."${id}_zones") {
-        settingRemove("${id}_zones")
-    }
+    if(settings?."${id}_zones") { settingRemove("${id}_zones") }
     def whIds = atomicState?.webhookIds
-    if(whIds && whIds[id]) {
-        removeWebhookByDevId(id)
-    }
-    removeWateringItem(id)
-    removeStandbyItem(id)
-    atomicState?.inStandbyModeMap = standByMap
+    if(whIds && whIds[id]) { removeWebhookByDevId(id) }
+}
+
+def isWatering() {
+    def i = atomicState?.isWateringMap?.findAll { it?.value == true }
+    return (i?.size() > 0)
 }
 
 def removeWateringItem(id) {
     def i = atomicState?.isWateringMap ?: [:]
-    if(id && i && i[id]) { i?.remove(id) }
+    if(id && i[id] != null) { i?.remove(id) }
     atomicState?.isWateringMap = i
 }
 
 def removeStandbyItem(id) {
     def i = atomicState?.inStandbyModeMap ?: [:]
-    if(id && i && i[id]) { i?.remove(id) }
+    if(id && i[id] != null) { i?.remove(id) }
     atomicState?.inStandbyModeMap = i
 }
 
 def updateWateringItem(id, val) {
     def i = atomicState?.isWateringMap ?: [:]
-    if(id && i) { i[id] = val }
+    if(id && i != null) { i[id] = val }
     atomicState?.isWateringMap = i
 }
 
-def updateStandbyItem(id, val) {
+def updateStandbyItem(String id, Boolean val) {
     def i = atomicState?.inStandbyModeMap ?: [:]
-    if(id && i) { i[id] = val }
+    if(id && i != null) { i[id] = val }
     atomicState?.inStandbyModeMap = i
 }
 
@@ -725,7 +718,7 @@ def addRemoveDevices(uninst=false) {
             log.warn "Device Delete: ${delete} | Removing (${delete?.size()}) Devices..."
             delete?.each {
                 cleanupObjects(it?.deviceNetworkId)
-                deleteChildDevice(it?.deviceNetworkId)
+                deleteChildDevice(it?.deviceNetworkId, true)
                 log.warn "Deleted the Device: ${it?.displayName}"
             }
         }
@@ -771,9 +764,6 @@ void poll(child=null, type=null) {
     def lastPollSec = getTimeSinceInSeconds(atomicState?.lastPollDt)
     if(child && !type) { type = "device" }
     log.info "${app.label} -- Polling API for Latest Data -- Last Update was ($lastPollSec seconds ago)${type ? " | Reason: [$type]" : ""}"
-            
-    def standByMap = atomicState?.inStandbyModeMap ?: [:]
-    def wateringMap = atomicState?.isWateringMap ?: [:]
     if(lastPollSec < 2) {
         runIn(3, "poll", [overwrite: true])
         //log.warn "Delaying poll... It's too soon to request new data"
@@ -785,23 +775,17 @@ void poll(child=null, type=null) {
     selectedDevices?.each { cont->
         def devData = getDeviceData(cont?.key)
         def cDev = getChildDevice(cont?.key)
-        if(standByMap[cont?.key] == null) { standByMap[cont?.key] = false }
-        if(wateringMap[cont?.key] == null) { wateringMap[cont?.key] = false }
         if(cDev) {
             ctrlCnt = ctrlCnt+1
             pollChild(cDev, devData)
-            
             cont?.value?.zones?.each { zone->
                 zoneCnt = zoneCnt+1
                 def zDev = getChildDevice(zone?.key)
                 if(zDev) { pollChild(zDev, devData) }
             }
-            
         }
     }
     log.info "Updating (${ctrlCnt}) Controllers and (${zoneCnt}) Zone devices..."
-    atomicState?.inStandbyModeMap = standByMap
-    atomicState?.isWateringMap = wateringMap
     atomicState?.lastPollDt = now()
 }
 
@@ -815,27 +799,26 @@ def pollChildren(childDev, devData) {
     //log.trace "updating child device (${child?.label})" // | ${child?.device?.deviceNetworkId})"
     try {
         if(childDev && devData) {
-            def dni = childDev?.device?.deviceNetworkId
+            String dni = childDev?.device?.deviceNetworkId
             String devLabel = childDev?.label
             def schedData = devData.currentSchedule
             def devStatus = devData
             def rainDelay = getCurrentRainDelay(devStatus)
             def status = devStatus?.status
             def onlStatus = status?.toString()?.toLowerCase() == "online" ? "online" : "offline"
-            if (!childDev?.getDataValue("HealthEnrolled")) {
-				childDev.updated()
-			}
-            def pauseInStandby = settings?.pauseInStandby == false ? false : true
-            def inStandby = devData?.on.toString() != "true" ? true : false
+            if(!childDev?.getDataValue("HealthEnrolled")) { childDev.updated() }
+            Boolean pauseInStandby = settings?.pauseInStandby == false ? false : true
+            Boolean inStandby = devData?.on.toString() != "true" ? true : false
+            Boolean schedRunning = (schedData?.status == "PROCESSING") ? true : false
             def data = []
             Map selectedDevices = atomicState?.selectedDevices ?: [:]
             selectedDevices?.each { contDev ->
-                if (dni == contDev?.key) {
-                    def standByMap = atomicState?.inStandbyModeMap ?: [:]
-                    standByMap[dni] = inStandby
-                    atomicState?.inStandbyModeMap = standByMap
-                    def wateringMap = atomicState?.isWateringMap ?: [:]
-                    if(wateringMap && wateringMap[contDev?.key] == true && schedData?.status != "PROCESSING") { handleWateringSched(contDev?.key, false) }
+                if(dni == contDev?.key) {
+                    updateStandbyItem(dni, inStandby)
+                    // log.debug "schedRunning: ${schedRunning} | isWatering: ${isWatering()}"
+                    if (isWatering() && !schedRunning) {
+                        handleWateringSched(dni, false)
+                    }
                     def newLabel = getDeviceLabelStr(devData?.name).toString()
                     if(devLabel != newLabel) {
                         childDev?.label = newLabel
@@ -868,12 +851,27 @@ def pollChildren(childDev, devData) {
     return result
 }
 
+void setWateringDeviceState(devId, val) {
+    // log.trace "setWateringDeviceState($devId, $val)"
+    updateWateringItem(devId, val)
+}
+
+void handleWateringSched(devId, val=false) {
+    // log.trace "handleWateringSched($devId, $val)"
+    if(val == true) {
+        log.trace "Watering is Active... Scheduling poll for every 1 minute"
+        runEvery1Minute("poll")
+    } else {
+        log.trace "Watering has finished... 1 minute Poll has been unscheduled"
+        unschedule("poll")
+        runIn(60, "poll") // This is here just to make sure that the schedule actually stopped and that the data is really current.
+    }
+    updateWateringItem(devId, val)
+}
+
 def findZoneData(devId, devData) {
     if(!devId || !devData) { return null }
-    if(devData?.zones) {
-        //log.debug "devData: ${devData?.zones}"
-        return devData?.zones.find { it?.id == devId }
-    }
+    if(devData?.zones) { return devData?.zones.find { it?.id == devId } }
     return null
 }
 
@@ -1064,21 +1062,6 @@ def isWatering(devId) {
     return result
 }
 
-void handleWateringSched(deviceId, val=false) {
-    log.debug "handleWateringSched($val)"
-    if(val == true) {
-        log.trace "Watering is Active... Scheduling poll for every 1 minute"
-        runEvery1Minute("poll")
-    } else {
-        log.trace "Watering has finished... 1 minute Poll has been unscheduled"
-        unschedule("poll")
-        runIn(60, "poll") // This is here just to make sure that the schedule actually stopped and that the data is really current.
-    }
-    def isWateringMap = atomicState?.isWateringMap ?: [:]
-    isWateringMap[deviceId] = val
-    atomicState?.isWateringMap = isWateringMap
-}
-
 def getDeviceStatus(devId) {
     return _httpGet("device/${devId}")
 }
@@ -1161,23 +1144,3 @@ def getScheduleRuleInfo(schedId) {
     def res = _httpGet("schedulerule/${schedId}")
     return res
 }
-
-// def restoreZoneSched(runData) {
-//     def res = false
-//     log.trace "restoreZoneSched( Data: ${runData})..."
-//     //child?.log("restoreZoneSched( Data: ${runData})...")
-//     def selectedDevices = atomicState?.selectedDevices ?: [:]
-//     if (controlId && selectedDevices[controlId] && selectedDevices[controlId]?.zones && mins) {
-//     if (atomicState?.selectedZones && mins) {
-//         def zoneData = []
-//         def sortNum = 1
-//         runData?.each { rd ->
-//             zoneData << ["id":rd?.zoneId, "duration": rd?.duration, "sortOrder": rd?.sortNumber]
-//         }
-//         def jsonData = new JsonBuilder("zones":zoneData)
-//         child?.log("restoreZoneSched jsonData: ${jsonData}")
-//         sendJson("zone/start_multiple", jsonData?.toString())
-//         res = true
-//     }
-//     return res
-// }
