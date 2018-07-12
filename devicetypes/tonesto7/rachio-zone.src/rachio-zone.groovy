@@ -474,27 +474,27 @@ def scheduleDataEvent(data) {
     def isCycling =  (zoneId == device?.deviceNetworkId && data?.cycling) ? true : false
     def wateringVal = device?.currentState("watering")?.value
     if(isStateChange(device, "scheduleType", curSchedType?.toString().toLowerCase())) {
-        sendEvent(name: 'scheduleType', value: curSchedType?.toString().toLowerCase()?.capitalize(), displayed: true, isStateChange: true)
+        sendEvent(name: 'scheduleType', value: curSchedType?.toString().toLowerCase()?.capitalize())
     }
     if(isStateChange(device, "zoneDuration", zoneDuration.toString())) {
-        sendEvent(name: 'zoneDuration', value: zoneDuration.toString(), displayed: true, isStateChange: true)
+        sendEvent(name: 'zoneDuration', value: zoneDuration.toString())
     }
-    def zoneElapsed = timeDiff && timeDiff > 0 ? timeDiff : null
+    def zoneElapsed = zoneDuration && timeDiff && timeDiff > 0 ? timeDiff : null
     if(isStateChange(device, "zoneElapsed", zoneElapsed.toString())) {
-        sendEvent(name: 'zoneElapsed', value: zoneElapsed.toString(), displayed: false, isStateChange: true)
+        sendEvent(name: 'zoneElapsed', value: zoneElapsed.toString(), displayed: false)
     }
     if(!state?.inStandby && wateringVal != "offline" && isStateChange(device, "zoneRunStatus", zoneRunStatus.toString())) {
         log.info("UPDATED: ZoneRunStatus (${zoneRunStatus})")
-        sendEvent(name: 'zoneRunStatus', value: zoneRunStatus.toString(), displayed: true, isStateChange: true)
+        sendEvent(name: 'zoneRunStatus', value: zoneRunStatus.toString())
     }
     if(isStateChange(device, "zoneCycleCount", zoneCycleCount.toString())) {
-        sendEvent(name: 'zoneCycleCount', value: zoneCycleCount, displayed: true, isStateChange: true)
+        sendEvent(name: 'zoneCycleCount', value: zoneCycleCount)
     }
     if(isStateChange(device, "isCycling", isCycling?.toString().capitalize())) {
-        sendEvent(name: 'isCycling', value: isCycling?.toString().capitalize(), displayed: true, isStateChange: true)
+        sendEvent(name: 'isCycling', value: isCycling?.toString().capitalize())
     }
     if(isStateChange(device, "zoneStartDate", (zoneStartDate ? epochToDt(zoneStartDate).toString() : "Not Active"))) {
-        sendEvent(name: 'zoneStartDate', value: (zoneStartDate ? epochToDt(zoneStartDate).toString() : "Not Active"), displayed: true, isStateChange: true)
+        sendEvent(name: 'zoneStartDate', value: (zoneStartDate ? epochToDt(zoneStartDate).toString() : "Not Active"))
     }
 }
 
