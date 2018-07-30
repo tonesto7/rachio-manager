@@ -451,7 +451,7 @@ def onAppTouch(event) {
 }
 
 def scheduler() {
-    runEvery1Minute("heartbeat")
+    // runEvery1Minute("heartbeat")
     runEvery15Minutes("heartbeat")
     //runEvery30Minutes("heartbeat")
 }
